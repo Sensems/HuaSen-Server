@@ -796,6 +796,23 @@ export class PaginationDto {
 }
 ```
 
+- [ ] **Step 3b：编写通用 IdDto**
+
+```typescript
+// src/common/dto/id.dto.ts
+import { IsNotEmpty, IsString } from 'class-validator';
+
+/**
+ * 通用 ID 参数 DTO
+ * 用于 delete、publish、archive 等只需要 id 的操作
+ */
+export class IdDto {
+  @IsNotEmpty()
+  @IsString()
+  id: string;
+}
+```
+
 - [ ] **Step 4：编写业务异常类**
 
 ```typescript
@@ -1658,7 +1675,8 @@ export class UpdateCategoryDto {
 
 ```typescript
 // src/categories/dto/reorder-category.dto.ts
-import { IsArray, IsString, IsOptional } from 'class-validator';
+import { IsArray, IsString, IsOptional, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /** 排序项 */
 export class ReorderItem {
@@ -1672,6 +1690,8 @@ export class ReorderItem {
 
 export class ReorderCategoryDto {
   @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReorderItem)
   items: ReorderItem[];
 }
 ```
@@ -1796,14 +1816,37 @@ export class CategoriesService {
    * 关联笔记的 categoryId 置空
    */
   async delete(id: string) {
-    // 子分类一并删除
+    // 递归收集所有子孙分类 ID（最多 3 层）
+    const children = await this.prisma.category.findMany({
+      where: { parentId: id },
+      select: { id: true },
+    });
+    const childIds = children.map((c) => c.id);
+
+    // 删除孙级分类（children 的直接子级）
+    if (childIds.length > 0) {
+      await this.prisma.category.deleteMany({
+        where: { parentId: { in: childIds } },
+      });
+    }
+
+    // 删除子分类
     await this.prisma.category.deleteMany({
       where: { parentId: id },
     });
 
-    // 解除关联笔记的分类
+    // 收集所有受影响分类的 ID（自身 + 子孙）
+    const allAffectedIds = [id, ...childIds];
+    // 孙级 ID 一并收集（通过子分类在数据库中获取）
+    const grandChildren = await this.prisma.category.findMany({
+      where: { parentId: { in: childIds } },
+      select: { id: true },
+    });
+    allAffectedIds.push(...grandChildren.map((g) => g.id));
+
+    // 解除所有受影响笔记的分类关联
     await this.prisma.note.updateMany({
-      where: { categoryId: id },
+      where: { categoryId: { in: allAffectedIds } },
       data: { categoryId: null },
     });
 
@@ -1921,8 +1964,8 @@ export class CategoriesController {
    * POST /categories/delete
    */
   @Post('delete')
-  async delete(@Body('id') id: string) {
-    return this.categoriesService.delete(id);
+  async delete(@Body() body: IdDto) {
+    return this.categoriesService.delete(body.id);
   }
 
   /**
@@ -2082,8 +2125,8 @@ export class TagsController {
    * POST /tags/delete
    */
   @Post('delete')
-  async delete(@Body('id') id: string) {
-    return this.tagsService.delete(id);
+  async delete(@Body() body: IdDto) {
+    return this.tagsService.delete(body.id);
   }
 }
 ```
@@ -2466,8 +2509,8 @@ export class WechatController {
     @Req() req: FastifyRequest,
     @Res() res: FastifyReply,
   ): Promise<void> {
-    // 获取原始 XML 请求体
-    const body = (req as any).rawBody || (req.body as string);
+    // Fastify 的 text/xml content type parser 已将 body 解析为字符串
+    const body = req.body as string;
     await this.wechatService.handleMessage(body);
 
     // 设置响应类型为 text/plain
