@@ -107,38 +107,45 @@ senhua-notes-server/
 - Create: `src/main.ts`, `src/app.module.ts`
 - Create: `.env.example`, `.env`
 
-- [ ] **Step 1：安装 NestJS CLI 并创建项目**
+- [ ] **Step 1：手动创建 package.json 和相关依赖**
 
 ```bash
-npm i -g @nestjs/cli
-# 在上级目录创建项目骨架，然后移动进来，或者直接 nest new .
-# 由于当前目录已有文件（docs 等），建议手动创建文件
-```
-
-> 或者直接跳到 Step 4 手动编写关键文件（main.ts / app.module.ts / package.json / tsconfig.json），参考下方代码。
-
-- [ ] **Step 2：安装 Fastify 依赖**
-
-```bash
-npm i --save @nestjs/platform-fastify
-```
-
-- [ ] **Step 3：安装 Prisma 和其他依赖**
-
-```bash
+npm init -y
+npm i --save @nestjs/core @nestjs/common @nestjs/platform-fastify @nestjs/config
 npm i --save @prisma/client
 npm i --save class-validator class-transformer
-npm i --save @nestjs/config
+npm i --save reflect-metadata rxjs
 npm i --save xml2js  # 微信 XML 解析
-npm i --save crypto-js  # 微信 AES 解密
+npm i --save-dev @nestjs/cli @nestjs/testing
 npm i --save-dev prisma
-npm i --save-dev @types/xml2js @types/crypto-js
+npm i --save-dev typescript @types/node
+npm i --save-dev @types/xml2js
+npm i --save-dev jest @types/jest ts-jest
+npm i --save-dev supertest @types/supertest
 ```
 
-- [ ] **Step 4：创建 main.ts**
+然后配置 scripts：
+
+```jsonc
+// package.json 中替换 scripts 段：
+"scripts": {
+  "build": "nest build",
+  "start": "nest start",
+  "start:dev": "nest start --watch",
+  "start:prod": "node dist/main",
+  "test": "jest",
+  "test:e2e": "jest --config ./test/jest-e2e.json --forceExit"
+},
+"prisma": {
+  "seed": "ts-node prisma/seed.ts"
+}
+```
+
+- [ ] **Step 1b：创建 tsconfig.json**
 
 ```typescript
 // src/main.ts
+import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import {
@@ -2492,13 +2499,20 @@ import {
 } from '@nestjs/platform-fastify';
 import { AppModule } from '../src/app.module';
 
+/**
+ * E2E 集成测试
+ * 通过设置环境变量覆盖 .env 配置，使用独立的 test 数据库
+ */
 describe('App E2E (e2e)', () => {
   let app: NestFastifyApplication;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    // 覆盖数据库连接为测试库
+    process.env.DATABASE_URL =
+      'postgresql://postgres:password@localhost:5432/senhua_notes_test?schema=public';
+    process.env.WECHAT_TOKEN = 'test_token';
+    process.env.WECHAT_APP_ID = 'test_app_id';
+    process.env.WECHAT_ENCODING_AES_KEY = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 
     app = moduleFixture.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
@@ -2652,7 +2666,7 @@ describe('App E2E (e2e)', () => {
 });
 ```
 
-- [ ] **Step 3：配置测试数据库**
+- [ ] **Step 3：配置测试数据库环境变量**
 
 创建 `.env.test`：
 
@@ -2678,7 +2692,7 @@ npx jest --config test/jest-e2e.json --forceExit
 
 预期：所有测试通过。
 
-- [ ] **Step 5：提交**
+- [ ] **Step 6：提交**
 
 ```bash
 git add -A
@@ -2730,6 +2744,7 @@ export class AppModule {}
 
 ```typescript
 // src/main.ts（完整版）
+import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import {
