@@ -53,7 +53,7 @@ senhua-notes-server/
 │   │       ├── create-note.dto.ts
 │   │       ├── update-note.dto.ts
 │   │       ├── query-note.dto.ts
-│   │       └── note-response.dto.ts
+│   │       └── index.ts
 │   │
 │   ├── categories/
 │   │   ├── categories.module.ts
@@ -62,14 +62,16 @@ senhua-notes-server/
 │   │   └── dto/
 │   │       ├── create-category.dto.ts
 │   │       ├── update-category.dto.ts
-│   │       └── reorder-category.dto.ts
+│   │       ├── reorder-category.dto.ts
+│   │       └── index.ts
 │   │
 │   ├── tags/
 │   │   ├── tags.module.ts
 │   │   ├── tags.controller.ts
 │   │   ├── tags.service.ts
-│   │   └── dto/
-│   │       └── create-tag.dto.ts
+│   │       └── dto/
+│   │           ├── create-tag.dto.ts
+│   │           └── index.ts
 │   │
 │   └── wechat/
 │       ├── wechat.module.ts
@@ -1012,12 +1014,15 @@ git commit -m "feat: add User module with default user service"
 - Create: `src/notes/dto/create-note.dto.ts`
 - Create: `src/notes/dto/update-note.dto.ts`
 - Create: `src/notes/dto/query-note.dto.ts`
+- Create: `src/notes/dto/index.ts`
 - Create: `src/notes/notes.service.ts`
 - Create: `src/notes/notes.controller.ts`
 - Create: `src/notes/notes.module.ts`
 - Modify: `src/app.module.ts` (import NotesModule)
 
-- [ ] **Step 1：编写 Notes DTOs**
+- [ ] **Step 1：编写 Notes DTOs 并创建 barrel 文件**
+
+（创建 create-note.dto.ts、update-note.dto.ts、query-note.dto.ts 三个 DTO 文件，内容如下）
 
 ```typescript
 // src/notes/dto/create-note.dto.ts
@@ -1114,6 +1119,15 @@ export class NoteIdDto {
   @IsString()
   id: string;
 }
+```
+
+- [ ] **Step 1b：创建 dto barrel 文件**
+
+```typescript
+// src/notes/dto/index.ts
+export { CreateNoteDto } from './create-note.dto';
+export { UpdateNoteDto } from './update-note.dto';
+export { QueryNoteDto, NoteIdDto } from './query-note.dto';
 ```
 
 - [ ] **Step 2：编写 NotesService**
@@ -1566,6 +1580,15 @@ export class ReorderCategoryDto {
 }
 ```
 
+- [ ] **Step 1b：创建 Categories dto barrel 文件**
+
+```typescript
+// src/categories/dto/index.ts
+export { CreateCategoryDto } from './create-category.dto';
+export { UpdateCategoryDto } from './update-category.dto';
+export { ReorderCategoryDto } from './reorder-category.dto';
+```
+
 - [ ] **Step 2：编写 CategoriesService**
 
 ```typescript
@@ -1861,6 +1884,13 @@ export class CreateTagDto {
   @MaxLength(32)
   name: string;
 }
+```
+
+- [ ] **Step 1b：创建 Tags dto barrel 文件**
+
+```typescript
+// src/tags/dto/index.ts
+export { CreateTagDto } from './create-tag.dto';
 ```
 
 - [ ] **Step 2：编写 TagsService**
@@ -2595,7 +2625,14 @@ WECHAT_APP_ID=test_app_id
 WECHAT_ENCODING_AES_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-- [ ] **Step 4：运行 E2E 测试**
+- [ ] **Step 4：运行测试数据库迁移和种子**
+
+```bash
+npx dotenv -e .env.test -- npx prisma migrate deploy
+npx dotenv -e .env.test -- npx prisma db seed
+```
+
+- [ ] **Step 5：运行 E2E 测试**
 
 ```bash
 npx jest --config test/jest-e2e.json --forceExit
