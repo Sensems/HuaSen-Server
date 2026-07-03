@@ -21,13 +21,15 @@ export class NotesService {
 
   /**
    * 获取笔记列表（分页 + 筛选）
+   * @param userId - 可选，Phase 3 传入当前用户 ID；不传则用默认用户
    */
-  async findAll(query: QueryNoteDto) {
+  async findAll(query: QueryNoteDto, userId?: string) {
     const { page = 1, size = 20, type, category, tag, keyword } = query;
     const skip = (page - 1) * size;
+    const uid = userId || DEFAULT_USER_ID;
 
     const where: Prisma.NoteWhereInput = {
-      userId: DEFAULT_USER_ID,
+      userId: uid,
       deletedAt: null,
     };
 
@@ -63,9 +65,10 @@ export class NotesService {
   /**
    * 获取笔记详情
    */
-  async findById(id: string) {
+  async findById(id: string, userId?: string) {
+    const uid = userId || DEFAULT_USER_ID;
     const note = await this.prisma.note.findFirst({
-      where: { id, userId: DEFAULT_USER_ID, deletedAt: null },
+      where: { id, userId: uid, deletedAt: null },
       include: {
         category: { select: { id: true, name: true } },
         tags: { include: { tag: { select: { id: true, name: true } } } },
@@ -83,12 +86,13 @@ export class NotesService {
   /**
    * 创建笔记（App 手动创建或微信消息入库）
    */
-  async create(dto: CreateNoteDto) {
+  async create(dto: CreateNoteDto, userId?: string) {
     const title = dto.title || this.generateTitle(dto.content);
+    const uid = userId || DEFAULT_USER_ID;
 
     return this.prisma.note.create({
       data: {
-        userId: DEFAULT_USER_ID,
+        userId: uid,
         type: $Enums.NoteType.DRAFT,
         source: (dto.source as unknown as $Enums.NoteSource) || $Enums.NoteSource.APP_MANUAL,
         title,

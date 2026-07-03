@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { Public } from '../common/decorators/public.decorator';
 import { WechatService } from './wechat.service';
 import { WechatVerifyParams } from './types/wechat-message.types';
 import type { FastifyRequest, FastifyReply } from 'fastify';
@@ -6,7 +7,9 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 /**
  * 微信回调控制器
  * 处理公众号服务器配置验证和消息接收
+ * 所有接口公开（微信服务器回调，不走 JWT）
  */
+@Public()
 @Controller('wechat')
 export class WechatController {
   constructor(private readonly wechatService: WechatService) {}
