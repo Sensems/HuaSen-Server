@@ -24,7 +24,7 @@ export class NotesService {
    * @param userId - 可选，Phase 3 传入当前用户 ID；不传则用默认用户
    */
   async findAll(query: QueryNoteDto, userId?: string) {
-    const { page = 1, size = 20, type, category, tag, keyword } = query;
+    const { page = 1, size = 20, type, category, tag, keyword, mediaType } = query;
     const skip = (page - 1) * size;
     const uid = userId || DEFAULT_USER_ID;
 
@@ -43,6 +43,9 @@ export class NotesService {
     }
     if (tag) {
       where.tags = { some: { tagId: tag } };
+    }
+    if (mediaType) {
+      where.media = { some: { type: mediaType as $Enums.MediaType } };
     }
 
     const [items, total] = await Promise.all([

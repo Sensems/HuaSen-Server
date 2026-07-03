@@ -44,6 +44,8 @@ export class WechatMessageProcessor extends WorkerHost {
 
   /**
    * 处理队列中的微信消息 Job
+   * @param job - BullMQ Job 对象，包含微信消息数据
+   * @returns 处理结果（创建的笔记或 null）
    */
   async process(job: Job<WechatMessageJobData, any, string>): Promise<any> {
     const data = job.data;
@@ -85,7 +87,7 @@ export class WechatMessageProcessor extends WorkerHost {
   }
 
   /**
-   * 处理多媒体消息：下载 → 上传七牛云 → 创建笔记
+   * 处理多媒体消息：下载 → 上传七牛云 → 创建笔记并关联 NoteMedia
    */
   private async processMedia(data: WechatMessageJobData) {
     const accessToken = await this.tokenService.getAccessToken();
@@ -104,17 +106,19 @@ export class WechatMessageProcessor extends WorkerHost {
       content = data.linkTitle ? `[文件] ${data.linkTitle}` : '[文件]';
     }
 
+    let mediaInfo: { key: string; url: string; mimeType: string; fileSize: number } | null = null;
+
     // 如果有 mediaId，从微信服务器下载并上传到七牛云
     if (data.mediaId && accessToken) {
       try {
-        const qiniuUrl = await this.downloadAndUpload(
+        mediaInfo = await this.downloadAndUpload(
           accessToken,
           data.mediaId,
           data.msgType,
         );
 
-        if (qiniuUrl) {
-          mediaUrl = qiniuUrl;
+        if (mediaInfo) {
+          mediaUrl = mediaInfo.url;
         }
       } catch (err) {
         console.error(`[WechatProcessor] Failed to process media ${data.mediaId}:`, err);
@@ -123,6 +127,12 @@ export class WechatMessageProcessor extends WorkerHost {
     }
 
     const title = this.generateTitle(content);
+    const mediaTypeMap: Record<string, $Enums.MediaType> = {
+      image: $Enums.MediaType.IMAGE,
+      voice: $Enums.MediaType.VOICE,
+      video: $Enums.MediaType.VIDEO,
+      file: $Enums.MediaType.FILE,
+    };
 
     return this.prisma.note.create({
       data: {
@@ -140,19 +150,34 @@ export class WechatMessageProcessor extends WorkerHost {
           ...(data.recognition ? { voice_recognition: data.recognition } : {}),
           ...(data.linkUrl ? { link_url: data.linkUrl, link_title: data.linkTitle, link_desc: data.linkDescription } : {}),
         },
+        ...(mediaInfo ? {
+          media: {
+            create: [{
+              type: mediaTypeMap[data.msgType],
+              qiniuKey: mediaInfo.key,
+              qiniuUrl: mediaInfo.url,
+              wxMediaId: data.mediaId,
+              fileSize: mediaInfo.fileSize,
+              mimeType: mediaInfo.mimeType,
+            }],
+          },
+        } : {}),
       },
     });
   }
 
   /**
    * 从微信服务器下载媒体文件并上传到七牛云
-   * @returns 七牛云文件 URL
+   * @param accessToken - 微信接口调用凭证
+   * @param mediaId - 微信媒体文件唯一标识
+   * @param msgType - 消息类型（image/voice/video/file）
+   * @returns 上传后的媒体信息（key, url, mimeType, fileSize），失败返回 null
    */
   private async downloadAndUpload(
     accessToken: string,
     mediaId: string,
     msgType: string,
-  ): Promise<string | null> {
+  ): Promise<{ key: string; url: string; mimeType: string; fileSize: number } | null> {
     const downloadUrl = `https://api.weixin.qq.com/cgi-bin/media/get?access_token=${accessToken}&media_id=${mediaId}`;
     const response = await axios.get(downloadUrl, {
       responseType: 'arraybuffer',
@@ -162,14 +187,14 @@ export class WechatMessageProcessor extends WorkerHost {
     const buffer = Buffer.from(response.data);
     if (buffer.length === 0) return null;
 
-    // 根据 Content-Type 推断文件扩展名
-    const contentType = response.headers['content-type'] as string || '';
-    const ext = this.getExtension(msgType, contentType);
+    const mimeType = (response.headers['content-type'] as string) || '';
+    const ext = this.getExtension(msgType, mimeType);
     const key = `wechat/${msgType}/${Date.now()}_${mediaId}.${ext}`;
 
-    // 上传到七牛云
-    const result = await this.storageService.uploadBuffer(key, buffer);
-    return this.storageService.getPublicUrl(key);
+    await this.storageService.uploadBuffer(key, buffer);
+    const url = this.storageService.getPublicUrl(key);
+
+    return { key, url, mimeType, fileSize: buffer.length };
   }
 
   /**
