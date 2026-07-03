@@ -21,5 +21,7 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "ignoreDeprecations": "6.0"
-  }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "test", "prisma"]
 }

@@ -1,0 +1,136 @@
+/** 笔记状态 */
+enum NoteType {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/** 笔记来源 */
+enum NoteSource {
+  WECHAT
+  APP_CLIPBOARD
+  APP_MANUAL
+}
+
+/** 多媒体类型 */
+enum MediaType {
+  IMAGE
+  VOICE
+  VIDEO
+  FILE
+}
+
+/** 用户角色 */
+enum UserRole {
+  ADMIN
+  USER
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/** 系统用户表 */
+model User {
+  id         String     @id @default(uuid()) @db.Uuid
+  wxOpenid   String?    @unique @map("wx_openid") @db.VarChar(64)
+  wxUnionid  String?    @map("wx_unionid") @db.VarChar(64)
+  nickname   String?    @db.VarChar(64)
+  avatar     String?    @db.VarChar(512)
+  role       UserRole   @default(ADMIN)
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  notes      Note[]
+  categories Category[]
+
+  @@map("users")
+}
+
+/** 笔记表 */
+model Note {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  categoryId String?   @map("category_id") @db.Uuid
+  type       NoteType  @default(DRAFT)
+  source     NoteSource @default(APP_MANUAL)
+  title      String?   @db.VarChar(256)
+  content    String?   @db.Text
+  rawContent String?   @map("raw_content") @db.Text
+  deletedAt  DateTime? @map("deleted_at")
+  meta       Json?     @db.JsonB
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user     User       @relation(fields: [userId], references: [id])
+  category Category?  @relation(fields: [categoryId], references: [id])
+  media    NoteMedia[]
+  tags     NoteTag[]
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([type])
+  @@index([deletedAt])
+  @@map("notes")
+}
+
+/** 笔记多媒体表 */
+model NoteMedia {
+  id        String    @id @default(uuid()) @db.Uuid
+  noteId    String    @map("note_id") @db.Uuid
+  type      MediaType
+  qiniuKey  String?   @map("qiniu_key") @db.VarChar(512)
+  qiniuUrl  String?   @map("qiniu_url") @db.VarChar(512)
+  wxMediaId String?   @map("wx_media_id") @db.VarChar(128)
+  fileSize  Int?      @map("file_size")
+  mimeType  String?   @map("mime_type") @db.VarChar(64)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  note Note @relation(fields: [noteId], references: [id])
+
+  @@map("note_media")
+}
+
+/** 分类表 */
+model Category {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  name      String    @db.VarChar(64)
+  parentId  String?   @map("parent_id") @db.Uuid
+  sortOrder Int       @default(0) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user     User       @relation(fields: [userId], references: [id])
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  notes    Note[]
+
+  @@map("categories")
+}
+
+/** 标签表 */
+model Tag {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @unique @db.VarChar(32)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  notes NoteTag[]
+
+  @@map("tags")
+}
+
+/** 笔记-标签多对多关联 */
+model NoteTag {
+  noteId String @map("note_id") @db.Uuid
+  tagId  String @map("tag_id") @db.Uuid
+
+  note Note @relation(fields: [noteId], references: [id])
+  tag  Tag  @relation(fields: [tagId], references: [id])
+
+  @@id([noteId, tagId])
+  @@map("note_tags")
+}
