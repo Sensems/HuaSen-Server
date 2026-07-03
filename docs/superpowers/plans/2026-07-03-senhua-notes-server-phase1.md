@@ -1,6 +1,6 @@
 # Phase 1 MVP 实现计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 搭建 NestJS + Fastify + Prisma + PostgreSQL 服务骨架，实现微信公众号文本消息接收并保存为临时笔记。
 
@@ -107,7 +107,7 @@ senhua-notes-server/
 - Create: `src/main.ts`, `src/app.module.ts`
 - Create: `.env.example`, `.env`
 
-- [ ] **Step 1：手动创建 package.json 和相关依赖**
+- [x] **Step 1：手动创建 package.json 和相关依赖**
 
 ```bash
 npm init -y
@@ -141,7 +141,7 @@ npm i --save-dev supertest @types/supertest
 }
 ```
 
-- [ ] **Step 2：创建 tsconfig.json**
+- [x] **Step 2：创建 tsconfig.json**
 
 ```jsonc
 // tsconfig.json
@@ -190,7 +190,7 @@ npm i --save-dev supertest @types/supertest
 }
 ```
 
-- [ ] **Step 3：创建 main.ts**
+- [x] **Step 3：创建 main.ts**
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -232,7 +232,7 @@ async function bootstrap() {
 bootstrap();
 ```
 
-- [ ] **Step 4：创建 app.module.ts（骨架版）**
+- [x] **Step 4：创建 app.module.ts（骨架版）**
 
 ```typescript
 // src/app.module.ts
@@ -248,7 +248,7 @@ import { Module } from '@nestjs/common';
 export class AppModule {}
 ```
 
-- [ ] **Step 5：创建 .env.example 和 .env**
+- [x] **Step 5：创建 .env.example 和 .env**
 
 ```
 # .env.example
@@ -276,7 +276,7 @@ QINIU_DOMAIN=
 Copy-Item -LiteralPath ".env.example" -Destination ".env"
 ```
 
-- [ ] **Step 6：确认项目能启动**
+- [x] **Step 6：确认项目能启动**
 
 ```bash
 npm run start:dev
@@ -284,7 +284,7 @@ npm run start:dev
 
 预期输出：`Application is running on: http://0.0.0.0:3000`
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```bash
 git add -A
@@ -302,7 +302,7 @@ git commit -m "feat: scaffold NestJS project with Fastify adapter"
 - Create: `prisma/seed.ts`
 - Modify: `src/app.module.ts:14` (import PrismaModule)
 
-- [ ] **Step 1：编写 Prisma Schema**
+- [x] **Step 1：编写 Prisma Schema**
 
 ```prisma
 // prisma/schema.prisma
@@ -417,7 +417,7 @@ model NoteTag {
 }
 ```
 
-- [ ] **Step 2：编写 PrismaService**
+- [x] **Step 2：编写 PrismaService**
 
 ```typescript
 // src/prisma/prisma.service.ts
@@ -449,7 +449,7 @@ export class PrismaService
 }
 ```
 
-- [ ] **Step 3：编写 PrismaModule**
+- [x] **Step 3：编写 PrismaModule**
 
 ```typescript
 // src/prisma/prisma.module.ts
@@ -468,7 +468,7 @@ import { PrismaService } from './prisma.service';
 export class PrismaModule {}
 ```
 
-- [ ] **Step 4：编写 Seed 脚本**
+- [x] **Step 4：编写 Seed 脚本**
 
 ```typescript
 // prisma/seed.ts
@@ -507,7 +507,7 @@ main()
   });
 ```
 
-- [ ] **Step 5：配置 package.json seed 命令**
+- [x] **Step 5：配置 package.json seed 命令**
 
 在 `package.json` 中添加：
 
@@ -517,14 +517,14 @@ main()
 }
 ```
 
-- [ ] **Step 6：运行迁移和种子**
+- [x] **Step 6：运行迁移和种子**
 
 ```bash
 npx prisma migrate dev --name init
 npx prisma db seed
 ```
 
-- [ ] **Step 6b：创建微信消息去重唯一索引（手动迁移）**
+- [x] **Step 6b：创建微信消息去重唯一索引（手动迁移）**
 
 Prisma 不直接支持 JSONB 路径唯一索引，需创建手动迁移：
 
@@ -549,7 +549,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_wechat_msg_id_unique
 npx prisma migrate dev
 ```
 
-- [ ] **Step 7：更新 AppModule 引入 PrismaModule**
+- [x] **Step 7：更新 AppModule 引入 PrismaModule**
 
 ```typescript
 // src/app.module.ts
@@ -562,7 +562,7 @@ import { PrismaModule } from './prisma/prisma.module';
 export class AppModule {}
 ```
 
-- [ ] **Step 8：确认启动后数据库可连接**
+- [x] **Step 8：确认启动后数据库可连接**
 
 ```bash
 npm run start:dev
@@ -570,7 +570,7 @@ npm run start:dev
 
 预期：正常启动，无数据库连接错误
 
-- [ ] **Step 9：提交**
+- [x] **Step 9：提交**
 
 ```bash
 git add -A
@@ -585,7 +585,7 @@ git commit -m "feat: add Prisma schema, PrismaService, and seed script"
 - Create: `src/config/configuration.ts`
 - Modify: `src/app.module.ts:15` (import ConfigModule)
 
-- [ ] **Step 1：编写配置模块**
+- [x] **Step 1：编写配置模块**
 
 ```typescript
 // src/config/configuration.ts
@@ -619,7 +619,7 @@ export const qiniuConfig = registerAs('qiniu', () => ({
 }));
 ```
 
-- [ ] **Step 2：在 AppModule 中注册 ConfigModule**
+- [x] **Step 2：在 AppModule 中注册 ConfigModule**
 
 ```typescript
 // src/app.module.ts
@@ -641,7 +641,7 @@ import appConfig, { wechatConfig, qiniuConfig } from './config/configuration';
 export class AppModule {}
 ```
 
-- [ ] **Step 3：确认启动后环境变量可读取**
+- [x] **Step 3：确认启动后环境变量可读取**
 
 在 `main.ts` 中添加临时日志验证：
 
@@ -658,7 +658,7 @@ npm run start:dev
 
 验证后删除临时日志。
 
-- [ ] **Step 4：提交**
+- [x] **Step 4：提交**
 
 ```bash
 git add -A
@@ -675,7 +675,7 @@ git commit -m "feat: add configuration module with wechat and qiniu config"
 - Create: `src/common/dto/pagination.dto.ts`
 - Create: `src/common/exceptions/business.exception.ts`
 
-- [ ] **Step 1：编写错误码常量**
+- [x] **Step 1：编写错误码常量**
 
 ```typescript
 // src/common/constants/error-codes.ts
@@ -735,7 +735,7 @@ export const ErrorMessage: Record<number, string> = {
 };
 ```
 
-- [ ] **Step 2：编写枚举**
+- [x] **Step 2：编写枚举**
 
 ```typescript
 // src/common/enums/index.ts
@@ -769,7 +769,7 @@ export enum UserRole {
 }
 ```
 
-- [ ] **Step 3：编写通用 DTO**
+- [x] **Step 3：编写通用 DTO**
 
 ```typescript
 // src/common/dto/pagination.dto.ts
@@ -796,7 +796,7 @@ export class PaginationDto {
 }
 ```
 
-- [ ] **Step 3b：编写通用 IdDto**
+- [x] **Step 3b：编写通用 IdDto**
 
 ```typescript
 // src/common/dto/id.dto.ts
@@ -813,7 +813,7 @@ export class IdDto {
 }
 ```
 
-- [ ] **Step 4：编写业务异常类**
+- [x] **Step 4：编写业务异常类**
 
 ```typescript
 // src/common/exceptions/business.exception.ts
@@ -848,7 +848,7 @@ export class BusinessException extends HttpException {
 }
 ```
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add -A
@@ -864,7 +864,7 @@ git commit -m "feat: add common layer - error codes, enums, DTOs, business excep
 - Create: `src/common/interceptors/response.interceptor.ts`
 - Modify: `src/app.module.ts` (注册全局 filter 和 interceptor)
 
-- [ ] **Step 1：编写全局异常过滤器**
+- [x] **Step 1：编写全局异常过滤器**
 
 ```typescript
 // src/common/filters/global-exception.filter.ts
@@ -944,7 +944,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 }
 ```
 
-- [ ] **Step 2：编写响应拦截器**
+- [x] **Step 2：编写响应拦截器**
 
 ```typescript
 // src/common/interceptors/response.interceptor.ts
@@ -983,7 +983,7 @@ export class ResponseInterceptor implements NestInterceptor {
 }
 ```
 
-- [ ] **Step 3：在 AppModule 中全局注册**
+- [x] **Step 3：在 AppModule 中全局注册**
 
 ```typescript
 // src/app.module.ts
@@ -1012,7 +1012,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 export class AppModule {}
 ```
 
-- [ ] **Step 4：验证**
+- [x] **Step 4：验证**
 
 启动应用，用 Fastify 的 inject 方法验证拦截器生效。在 `main.ts` bootstrap 末尾临时添加：
 
@@ -1024,7 +1024,7 @@ console.log('Test inject:', result.statusCode, result.payload);
 
 由于不可识别的路径 Fastify 返回 HTML/text，更可靠的验证方式是检查业务接口的响应。启动后访问 `http://localhost:3000/notes`，预期返回 JSON（code 为 0 或错误码）。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add -A
@@ -1039,7 +1039,7 @@ git commit -m "feat: add global exception filter and response interceptor"
 - Create: `src/user/user.service.ts`
 - Create: `src/user/user.module.ts`
 
-- [ ] **Step 1：编写 UserService**
+- [x] **Step 1：编写 UserService**
 
 ```typescript
 // src/user/user.service.ts
@@ -1089,7 +1089,7 @@ export class UserService {
 }
 ```
 
-- [ ] **Step 2：编写 UserModule**
+- [x] **Step 2：编写 UserModule**
 
 ```typescript
 // src/user/user.module.ts
@@ -1107,11 +1107,11 @@ import { UserService } from './user.service';
 export class UserModule {}
 ```
 
-- [ ] **Step 3：注册到 AppModule**
+- [x] **Step 3：注册到 AppModule**
 
 在 `src/app.module.ts` 的 imports 数组中添加 `UserModule`。
 
-- [ ] **Step 4：提交**
+- [x] **Step 4：提交**
 
 ```bash
 git add -A
@@ -1132,7 +1132,7 @@ git commit -m "feat: add User module with default user service"
 - Create: `src/notes/notes.module.ts`
 - Modify: `src/app.module.ts` (import NotesModule)
 
-- [ ] **Step 1：编写 Notes DTOs 并创建 barrel 文件**
+- [x] **Step 1：编写 Notes DTOs 并创建 barrel 文件**
 
 （创建 create-note.dto.ts、update-note.dto.ts、query-note.dto.ts 三个 DTO 文件，内容如下）
 
@@ -1233,7 +1233,7 @@ export class NoteIdDto {
 }
 ```
 
-- [ ] **Step 1b：创建 dto barrel 文件**
+- [x] **Step 1b：创建 dto barrel 文件**
 
 ```typescript
 // src/notes/dto/index.ts
@@ -1242,7 +1242,7 @@ export { UpdateNoteDto } from './update-note.dto';
 export { QueryNoteDto, NoteIdDto } from './query-note.dto';
 ```
 
-- [ ] **Step 2：编写 NotesService**
+- [x] **Step 2：编写 NotesService**
 
 ```typescript
 // src/notes/notes.service.ts
@@ -1494,7 +1494,7 @@ export class NotesService {
 }
 ```
 
-- [ ] **Step 3：编写 NotesController**
+- [x] **Step 3：编写 NotesController**
 
 ```typescript
 // src/notes/notes.controller.ts
@@ -1584,7 +1584,7 @@ export class NotesController {
 }
 ```
 
-- [ ] **Step 4：编写 NotesModule**
+- [x] **Step 4：编写 NotesModule**
 
 ```typescript
 // src/notes/notes.module.ts
@@ -1602,11 +1602,11 @@ import { UserModule } from '../user/user.module';
 export class NotesModule {}
 ```
 
-- [ ] **Step 5：注册到 AppModule**
+- [x] **Step 5：注册到 AppModule**
 
 在 `src/app.module.ts` 的 imports 数组中添加 `NotesModule`。
 
-- [ ] **Step 6：手动测试笔记创建**
+- [x] **Step 6：手动测试笔记创建**
 
 ```bash
 npm run start:dev
@@ -1617,7 +1617,7 @@ Invoke-RestMethod -Uri "http://localhost:3000/notes/create" -Method POST -Conten
 
 预期返回 code=0 的响应。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```bash
 git add -A
@@ -1637,7 +1637,7 @@ git commit -m "feat: add Notes module with full CRUD and state transitions"
 - Create: `src/categories/categories.module.ts`
 - Modify: `src/app.module.ts` (import CategoriesModule)
 
-- [ ] **Step 1：编写 Categories DTOs**
+- [x] **Step 1：编写 Categories DTOs**
 
 ```typescript
 // src/categories/dto/create-category.dto.ts
@@ -1696,7 +1696,7 @@ export class ReorderCategoryDto {
 }
 ```
 
-- [ ] **Step 1b：创建 Categories dto barrel 文件**
+- [x] **Step 1b：创建 Categories dto barrel 文件**
 
 ```typescript
 // src/categories/dto/index.ts
@@ -1705,7 +1705,7 @@ export { UpdateCategoryDto } from './update-category.dto';
 export { ReorderCategoryDto } from './reorder-category.dto';
 ```
 
-- [ ] **Step 2：编写 CategoriesService**
+- [x] **Step 2：编写 CategoriesService**
 
 ```typescript
 // src/categories/categories.service.ts
@@ -1917,7 +1917,7 @@ export class CategoriesService {
 }
 ```
 
-- [ ] **Step 3：编写 CategoriesController**
+- [x] **Step 3：编写 CategoriesController**
 
 ```typescript
 // src/categories/categories.controller.ts
@@ -1979,7 +1979,7 @@ export class CategoriesController {
 }
 ```
 
-- [ ] **Step 4：编写 CategoriesModule**
+- [x] **Step 4：编写 CategoriesModule**
 
 ```typescript
 // src/categories/categories.module.ts
@@ -1994,7 +1994,7 @@ import { CategoriesService } from './categories.service';
 export class CategoriesModule {}
 ```
 
-- [ ] **Step 5：注册到 AppModule 并提交**
+- [x] **Step 5：注册到 AppModule 并提交**
 
 ```bash
 git add -A
@@ -2012,7 +2012,7 @@ git commit -m "feat: add Categories module with tree structure and reorder"
 - Create: `src/tags/tags.module.ts`
 - Modify: `src/app.module.ts` (import TagsModule)
 
-- [ ] **Step 1：编写 Tags DTO**
+- [x] **Step 1：编写 Tags DTO**
 
 ```typescript
 // src/tags/dto/create-tag.dto.ts
@@ -2025,14 +2025,14 @@ export class CreateTagDto {
 }
 ```
 
-- [ ] **Step 1b：创建 Tags dto barrel 文件**
+- [x] **Step 1b：创建 Tags dto barrel 文件**
 
 ```typescript
 // src/tags/dto/index.ts
 export { CreateTagDto } from './create-tag.dto';
 ```
 
-- [ ] **Step 2：编写 TagsService**
+- [x] **Step 2：编写 TagsService**
 
 ```typescript
 // src/tags/tags.service.ts
@@ -2087,7 +2087,7 @@ export class TagsService {
 }
 ```
 
-- [ ] **Step 3：编写 TagsController**
+- [x] **Step 3：编写 TagsController**
 
 ```typescript
 // src/tags/tags.controller.ts
@@ -2131,7 +2131,7 @@ export class TagsController {
 }
 ```
 
-- [ ] **Step 4：编写 TagsModule**
+- [x] **Step 4：编写 TagsModule**
 
 ```typescript
 // src/tags/tags.module.ts
@@ -2147,7 +2147,7 @@ import { TagsService } from './tags.service';
 export class TagsModule {}
 ```
 
-- [ ] **Step 5：注册到 AppModule 并提交**
+- [x] **Step 5：注册到 AppModule 并提交**
 
 ```bash
 git add -A
@@ -2167,7 +2167,7 @@ git commit -m "feat: add Tags module with upsert and unbind-on-delete"
 - Create: `src/wechat/wechat.module.ts`
 - Modify: `src/app.module.ts` (import WechatModule)
 
-- [ ] **Step 1：编写微信消息类型定义**
+- [x] **Step 1：编写微信消息类型定义**
 
 ```typescript
 // src/wechat/types/wechat-message.types.ts
@@ -2252,7 +2252,7 @@ export type WechatMessage =
   | WechatFileMessage;
 ```
 
-- [ ] **Step 2：编写 XML 解析工具**
+- [x] **Step 2：编写 XML 解析工具**
 
 ```typescript
 // src/wechat/utils/xml-parser.ts
@@ -2284,7 +2284,7 @@ export function buildReplyXml(data: Record<string, unknown>): string {
 }
 ```
 
-- [ ] **Step 3：编写加解密工具**
+- [x] **Step 3：编写加解密工具**
 
 ```typescript
 // src/wechat/utils/crypto.ts
@@ -2369,7 +2369,7 @@ export function decryptMessage(
 }
 ```
 
-- [ ] **Step 4：编写 WechatService**
+- [x] **Step 4：编写 WechatService**
 
 ```typescript
 // src/wechat/wechat.service.ts
@@ -2468,7 +2468,7 @@ export class WechatService {
 }
 ```
 
-- [ ] **Step 5：编写 WechatController**
+- [x] **Step 5：编写 WechatController**
 
 ```typescript
 // src/wechat/wechat.controller.ts
@@ -2521,7 +2521,7 @@ export class WechatController {
 
 > 注意：POST 回调需要获取 raw body，因为微信 XML 解密需要原始字节流。Fastify 默认解析为 JSON，需要在 WechatModule 中配置 `rawBody: true` 或者在 Controller 中直接读取 raw body。
 
-- [ ] **Step 6：编写 WechatModule**
+- [x] **Step 6：编写 WechatModule**
 
 ```typescript
 // src/wechat/wechat.module.ts
@@ -2538,11 +2538,11 @@ import { NotesModule } from '../notes/notes.module';
 export class WechatModule {}
 ```
 
-- [ ] **Step 7：注册到 AppModule**
+- [x] **Step 7：注册到 AppModule**
 
 在 `src/app.module.ts` 的 imports 数组中添加 `WechatModule`。
 
-- [ ] **Step 8：配置 WeChat Fastify 插件以保留 raw body**
+- [x] **Step 8：配置 WeChat Fastify 插件以保留 raw body**
 
 在 `main.ts` 中，Fastify 需要处理 `text/xml` 类型的 body。添加 content type parser：
 
@@ -2560,7 +2560,7 @@ fastifyInstance.addContentTypeParser(
 );
 ```
 
-- [ ] **Step 9：提交**
+- [x] **Step 9：提交**
 
 ```bash
 git add -A
@@ -2575,7 +2575,7 @@ git commit -m "feat: add WeChat module with message decryption and text note cre
 - Create: `test/app.e2e-spec.ts`
 - Modify: `test/jest-e2e.json` (确保配置正确)
 
-- [ ] **Step 1：安装测试依赖并创建 Jest 配置**
+- [x] **Step 1：安装测试依赖并创建 Jest 配置**
 
 ```bash
 npm i --save-dev @nestjs/testing
@@ -2597,7 +2597,7 @@ npm i --save-dev supertest @types/supertest
 }
 ```
 
-- [ ] **Step 2：编写 E2E 测试**
+- [x] **Step 2：编写 E2E 测试**
 
 ```typescript
 // test/app.e2e-spec.ts
@@ -2779,7 +2779,7 @@ describe('App E2E (e2e)', () => {
 });
 ```
 
-- [ ] **Step 3：配置测试数据库环境变量**
+- [x] **Step 3：配置测试数据库环境变量**
 
 创建 `.env.test`：
 
@@ -2790,14 +2790,14 @@ WECHAT_APP_ID=test_app_id
 WECHAT_ENCODING_AES_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-- [ ] **Step 4：运行测试数据库迁移和种子**
+- [x] **Step 4：运行测试数据库迁移和种子**
 
 ```bash
 npx dotenv -e .env.test -- npx prisma migrate deploy
 npx dotenv -e .env.test -- npx prisma db seed
 ```
 
-- [ ] **Step 5：运行 E2E 测试**
+- [x] **Step 5：运行 E2E 测试**
 
 ```bash
 npx jest --config test/jest-e2e.json --forceExit
@@ -2805,7 +2805,7 @@ npx jest --config test/jest-e2e.json --forceExit
 
 预期：所有测试通过。
 
-- [ ] **Step 6：提交**
+- [x] **Step 6：提交**
 
 ```bash
 git add -A

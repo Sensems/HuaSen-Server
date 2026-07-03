@@ -10,6 +10,8 @@ import { NotesModule } from './notes/notes.module';
 import { CategoriesModule } from './categories/categories.module';
 import { TagsModule } from './tags/tags.module';
 import { WechatModule } from './wechat/wechat.module';
+import { QueueModule } from './queue/queue.module';
+import { StorageModule } from './storage/storage.module';
 
 /**
  * 应用根模块
@@ -28,6 +30,8 @@ import { WechatModule } from './wechat/wechat.module';
     CategoriesModule,
     TagsModule,
     WechatModule,
+    QueueModule,
+    StorageModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

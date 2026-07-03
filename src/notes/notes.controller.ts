@@ -60,4 +60,16 @@ export class NotesController {
   async media(@Query('note_id') noteId: string) {
     return this.notesService.getMedia(noteId);
   }
+
+  /** GET /notes/share?id= 获取笔记分享链接 */
+  @Get('share')
+  async share(@Query() query: IdDto) {
+    const note = await this.notesService.findById(query.id);
+    return {
+      id: note.id,
+      title: note.title,
+      type: note.type,
+      shareUrl: `/notes/detail?id=${note.id}`,
+    };
+  }
 }
