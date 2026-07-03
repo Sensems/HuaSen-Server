@@ -138,6 +138,7 @@ source        ENUM('wechat','app_clipboard','app_manual')
 title         VARCHAR(256)  自动截取前 N 字
 content       TEXT          文本内容 / 语音识别结果 / 链接描述
 raw_content   TEXT          微信原始消息内容（保留回溯）
+deleted_at    TIMESTAMP     nullable，软删除标记
 meta          JSONB         灵活扩展字段
 created_at    TIMESTAMP
 updated_at    TIMESTAMP
@@ -194,7 +195,10 @@ tag_id        UUID        FK → Tag
 
 ### 关键设计决策
 
-- **Note.type 三元状态**：`draft`（公众号消息自动创建）→ `published`（用户分类编辑后）→ `archived`（归档）。未分类的 draft 即临时笔记
+- **Note.type 三元状态**：`draft`（公众号消息自动创建）→ `published`（用户分类编辑后）⇄ `archived`（归档，可取消归档回到 published）。未分类的 draft 即临时笔记
+- **软删除**：`Note.deleted_at` 字段，查询列表默认过滤已删除笔记（`WHERE deleted_at IS NULL`）。`POST /notes/delete` 设置该字段时间戳
+- **title 自动生成**：从 `content` 截取前 100 字符，去除换行后作为默认标题
+- **分类排序**：`sort_order` 为同级（相同 `parent_id`）内的排序，全局排序通过树形递归构建
 - **meta JSONB**：不同来源（微信/App/剪贴板）笔记字段差异大，JSONB 可按路径建索引，查询性能不输结构化字段
 - **NoteMedia 独立表**：一条笔记可关联多张图片等多媒体，一对多关系用独立表而非 JSON 内嵌
 - **微信消息去重**：`meta.wechat_msg_id` 建唯一索引，防止微信重试推送产生重复笔记
@@ -373,10 +377,13 @@ senhua-notes-server/
 
 - 项目骨架搭建（NestJS + Fastify + Prisma + PostgreSQL）
 - 配置管理（环境变量，七牛云 SDK 初始化）
+- 数据库 Seed：预先创建一个默认用户（固定 UUID），所有笔记关联到此用户
 - 微信回调接入（Token 验证 + 消息解密 + 签名校验）
 - 文本消息 → 创建临时笔记（draft）
 - 笔记列表查询、详情、编辑、删除
 - 分类/标签 CRUD
+
+Phase 1 **不做**认证，所有 API 无鉴权直接操作默认用户数据。Phase 3 接入认证后替换为 JWT Guard。
 
 **目标**：公众号发文字 → 服务端生成笔记
 
