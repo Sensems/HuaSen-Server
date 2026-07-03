@@ -1,25 +1,27 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 /**
  * Prisma 数据库服务
- * 封装 PrismaClient，管理数据库连接生命周期
+ * Prisma 7 要求使用 driver adapter 连接 PostgreSQL
  */
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  /**
-   * 模块初始化时连接数据库
-   */
+  constructor() {
+    const adapter = new PrismaPg({
+      connectionString: process.env.DATABASE_URL!,
+    });
+    super({ adapter });
+  }
+
   async onModuleInit() {
     await this.$connect();
   }
 
-  /**
-   * 模块销毁时断开数据库连接
-   */
   async onModuleDestroy() {
     await this.$disconnect();
   }
