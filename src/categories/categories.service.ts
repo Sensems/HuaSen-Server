@@ -16,9 +16,10 @@ export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** 获取分类列表（树形返回） */
-  async findAll() {
+  async findAll(userId?: string) {
+    const uid = userId || DEFAULT_USER_ID;
     const categories = await this.prisma.category.findMany({
-      where: { userId: DEFAULT_USER_ID },
+      where: { userId: uid },
       orderBy: { sortOrder: 'asc' },
       include: { _count: { select: { notes: true } } },
     });
@@ -26,10 +27,11 @@ export class CategoriesService {
   }
 
   /** 创建分类 */
-  async create(dto: CreateCategoryDto) {
+  async create(dto: CreateCategoryDto, userId?: string) {
+    const uid = userId || DEFAULT_USER_ID;
     const exists = await this.prisma.category.findFirst({
       where: {
-        userId: DEFAULT_USER_ID,
+        userId: uid,
         name: dto.name,
         parentId: dto.parentId || null,
       },
@@ -39,13 +41,13 @@ export class CategoriesService {
     if (dto.parentId) await this.checkDepth(dto.parentId, 1);
 
     const last = await this.prisma.category.findFirst({
-      where: { userId: DEFAULT_USER_ID, parentId: dto.parentId || null },
+      where: { userId: uid, parentId: dto.parentId || null },
       orderBy: { sortOrder: 'desc' },
     });
 
     return this.prisma.category.create({
       data: {
-        userId: DEFAULT_USER_ID,
+        userId: uid,
         name: dto.name,
         parentId: dto.parentId || null,
         sortOrder: (last?.sortOrder ?? -1) + 1,

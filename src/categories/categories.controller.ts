@@ -2,6 +2,15 @@ import { Controller, Get, Post, Body } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto, UpdateCategoryDto, ReorderCategoryDto } from './dto';
 import { IdDto } from '../common/dto/id.dto';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+
+/** 当前用户最小信息 */
+interface CurrentUserInfo {
+  id: string;
+  openid: string;
+  nickname?: string;
+  role: string;
+}
 
 /**
  * 分类控制器
@@ -11,13 +20,13 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get()
-  async list() {
-    return this.categoriesService.findAll();
+  async list(@CurrentUser() user: CurrentUserInfo) {
+    return this.categoriesService.findAll(user?.id);
   }
 
   @Post('create')
-  async create(@Body() dto: CreateCategoryDto) {
-    return this.categoriesService.create(dto);
+  async create(@Body() dto: CreateCategoryDto, @CurrentUser() user: CurrentUserInfo) {
+    return this.categoriesService.create(dto, user?.id);
   }
 
   @Post('update')
