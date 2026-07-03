@@ -135,7 +135,7 @@ user_id       UUID          FK → User
 category_id   UUID          FK → Category (nullable，临时笔记为空)
 type          ENUM('draft','published','archived')  临时/正式/归档
 source        ENUM('wechat','app_clipboard','app_manual')
-title         VARCHAR(256)  自动截取前 N 字
+title         VARCHAR(256)  自动截取 content 前 100 字符
 content       TEXT          文本内容 / 语音识别结果 / 链接描述
 raw_content   TEXT          微信原始消息内容（保留回溯）
 deleted_at    TIMESTAMP     nullable，软删除标记
@@ -379,7 +379,7 @@ senhua-notes-server/
 - 配置管理（环境变量，七牛云 SDK 初始化）
 - 数据库 Seed：预先创建一个默认用户（固定 UUID），所有笔记关联到此用户
 - 微信回调接入（Token 验证 + 消息解密 + 签名校验）
-- 文本消息 → 创建临时笔记（draft）
+- 文本消息 → 同步处理直接创建临时笔记（draft），暂不引入 BullMQ
 - 笔记列表查询、详情、编辑、删除
 - 分类/标签 CRUD
 
@@ -389,7 +389,8 @@ Phase 1 **不做**认证，所有 API 无鉴权直接操作默认用户数据。
 
 ### Phase 2：多媒体 + 分享
 
-- 微信多媒体消息下载 + BullMQ 异步上传七牛云
+- 引入 BullMQ + Redis，微信多媒体消息异步下载 + 上传七牛云
+- 文本消息同步处理升级为统一入队处理
 - 临时笔记手动归类/编辑后转正式笔记
 - 笔记分享链接生成
 
