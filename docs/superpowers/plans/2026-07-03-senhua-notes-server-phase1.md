@@ -997,11 +997,15 @@ export class AppModule {}
 
 - [ ] **Step 4：验证**
 
-启动应用，访问 `http://localhost:3000/nonexistent`，预期返回：
+启动应用，用 Fastify 的 inject 方法验证拦截器生效。在 `main.ts` bootstrap 末尾临时添加：
 
-```json
-{"code":10004,"message":"Cannot GET /nonexistent","data":null,"details":null}
+```typescript
+// 临时测试代码（验证通过后删除）
+const result = await app.inject({ method: 'GET', url: '/health' });
+console.log('Test inject:', result.statusCode, result.payload);
 ```
+
+由于不可识别的路径 Fastify 返回 HTML/text，更可靠的验证方式是检查业务接口的响应。启动后访问 `http://localhost:3000/notes`，预期返回 JSON（code 为 0 或错误码）。
 
 - [ ] **Step 5：提交**
 
@@ -2528,11 +2532,26 @@ git commit -m "feat: add WeChat module with message decryption and text note cre
 - Create: `test/app.e2e-spec.ts`
 - Modify: `test/jest-e2e.json` (确保配置正确)
 
-- [ ] **Step 1：安装测试依赖**
+- [ ] **Step 1：安装测试依赖并创建 Jest 配置**
 
 ```bash
 npm i --save-dev @nestjs/testing
 npm i --save-dev supertest @types/supertest
+```
+
+创建 `test/jest-e2e.json`：
+
+```jsonc
+// test/jest-e2e.json
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  }
+}
 ```
 
 - [ ] **Step 2：编写 E2E 测试**
