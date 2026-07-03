@@ -111,10 +111,11 @@ senhua-notes-server/
 
 ```bash
 npm i -g @nestjs/cli
-nest new senhua-notes-server --skip-git --package-manager npm
+# 在上级目录创建项目骨架，然后移动进来，或者直接 nest new .
+# 由于当前目录已有文件（docs 等），建议手动创建文件
 ```
 
-> 注意：此命令会创建完整的 NestJS Express 骨架，后续步骤会改为 Fastify
+> 或者直接跳到 Step 4 手动编写关键文件（main.ts / app.module.ts / package.json / tsconfig.json），参考下方代码。
 
 - [ ] **Step 2：安装 Fastify 依赖**
 
@@ -139,6 +140,7 @@ npm i --save-dev @types/xml2js @types/crypto-js
 ```typescript
 // src/main.ts
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -154,6 +156,17 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter(),
     { rawBody: true },
+  );
+
+  // 启用全局参数校验（class-validator 装饰器生效）
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,        // 自动剥离非 DTO 定义的字段
+      transform: true,        // 自动类型转换
+      transformOptions: {
+        enableImplicitConversion: true, // Query 参数自动转数字等
+      },
+    }),
   );
 
   // 启用 CORS（App 端跨域访问）
@@ -456,6 +469,31 @@ main()
 ```bash
 npx prisma migrate dev --name init
 npx prisma db seed
+```
+
+- [ ] **Step 6b：创建微信消息去重唯一索引（手动迁移）**
+
+Prisma 不直接支持 JSONB 路径唯一索引，需创建手动迁移：
+
+```bash
+# 创建一个空的手动迁移
+npx prisma migrate dev --name add_wechat_msg_id_unique_index --create-only
+```
+
+然后在生成的迁移 SQL 文件中添加：
+
+```sql
+-- 在新建的迁移 SQL 文件末尾添加
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_wechat_msg_id_unique
+  ON notes ((meta->>'wechat_msg_id'))
+  WHERE meta->>'wechat_msg_id' IS NOT NULL
+    AND deleted_at IS NULL;
+```
+
+执行迁移：
+
+```bash
+npx prisma migrate dev
 ```
 
 - [ ] **Step 7：更新 AppModule 引入 PrismaModule**
@@ -1566,7 +1604,7 @@ export class UpdateCategoryDto {
 import { IsArray, IsString } from 'class-validator';
 
 /** 排序项 */
-class ReorderItem {
+export class ReorderItem {
   @IsString()
   id: string;
 
@@ -2693,6 +2731,7 @@ export class AppModule {}
 ```typescript
 // src/main.ts（完整版）
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -2704,6 +2743,15 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter(),
     { rawBody: true },
+  );
+
+  // 全局参数校验
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
   );
 
   app.enableCors();
