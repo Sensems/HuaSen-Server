@@ -141,10 +141,56 @@ npm i --save-dev supertest @types/supertest
 }
 ```
 
-- [ ] **Step 1b：创建 tsconfig.json**
+- [ ] **Step 2：创建 tsconfig.json**
 
-```typescript
-// src/main.ts
+```jsonc
+// tsconfig.json
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  }
+}
+```
+
+```jsonc
+// tsconfig.build.json
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+}
+```
+
+```jsonc
+// nest-cli.json
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": true
+  }
+}
+```
+
+- [ ] **Step 3：创建 main.ts**
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -186,7 +232,7 @@ async function bootstrap() {
 bootstrap();
 ```
 
-- [ ] **Step 5：创建 app.module.ts（骨架版）**
+- [ ] **Step 4：创建 app.module.ts（骨架版）**
 
 ```typescript
 // src/app.module.ts
@@ -202,7 +248,7 @@ import { Module } from '@nestjs/common';
 export class AppModule {}
 ```
 
-- [ ] **Step 6：创建 .env.example 和 .env**
+- [ ] **Step 5：创建 .env.example 和 .env**
 
 ```
 # .env.example
@@ -230,7 +276,7 @@ QINIU_DOMAIN=
 Copy-Item -LiteralPath ".env.example" -Destination ".env"
 ```
 
-- [ ] **Step 7：确认项目能启动**
+- [ ] **Step 6：确认项目能启动**
 
 ```bash
 npm run start:dev
@@ -238,7 +284,7 @@ npm run start:dev
 
 预期输出：`Application is running on: http://0.0.0.0:3000`
 
-- [ ] **Step 8：提交**
+- [ ] **Step 7：提交**
 
 ```bash
 git add -A
@@ -1608,13 +1654,14 @@ export class UpdateCategoryDto {
 
 ```typescript
 // src/categories/dto/reorder-category.dto.ts
-import { IsArray, IsString } from 'class-validator';
+import { IsArray, IsString, IsOptional } from 'class-validator';
 
 /** 排序项 */
 export class ReorderItem {
   @IsString()
   id: string;
 
+  @IsOptional()
   @IsString()
   parentId: string | null;
 }
@@ -2513,6 +2560,10 @@ describe('App E2E (e2e)', () => {
     process.env.WECHAT_TOKEN = 'test_token';
     process.env.WECHAT_APP_ID = 'test_app_id';
     process.env.WECHAT_ENCODING_AES_KEY = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
 
     app = moduleFixture.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
