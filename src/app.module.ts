@@ -5,10 +5,15 @@ import { PrismaModule } from './prisma/prisma.module';
 import { appConfig, wechatConfig, qiniuConfig } from './config/configuration';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { UserModule } from './user/user.module';
+import { NotesModule } from './notes/notes.module';
+import { CategoriesModule } from './categories/categories.module';
+import { TagsModule } from './tags/tags.module';
+import { WechatModule } from './wechat/wechat.module';
 
 /**
  * 应用根模块
- * 注册全局配置、过滤器、拦截器和功能模块
+ * 注册全局配置、过滤器、拦截器和所有功能模块
  */
 @Module({
   imports: [
@@ -18,6 +23,11 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
       load: [appConfig, wechatConfig, qiniuConfig],
     }),
     PrismaModule,
+    UserModule,
+    NotesModule,
+    CategoriesModule,
+    TagsModule,
+    WechatModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
