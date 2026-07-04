@@ -161,6 +161,17 @@ export class WechatMessageProcessor extends WorkerHost {
               mimeType: mediaInfo.mimeType,
             }],
           },
+        } : data.picUrl ? {
+          media: {
+            create: [{
+              type: $Enums.MediaType.IMAGE,
+              qiniuKey: data.picUrl,
+              qiniuUrl: data.picUrl,
+              wxMediaId: data.mediaId || null,
+              fileSize: 0,
+              mimeType: '',
+            }],
+          },
         } : {}),
       },
     });

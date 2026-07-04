@@ -104,6 +104,18 @@ export class NotesService {
         tags: dto.tagIds?.length
           ? { create: dto.tagIds.map((tagId) => ({ tagId })) }
           : undefined,
+        media: dto.media?.length
+          ? {
+              create: dto.media.map((m) => ({
+                type: m.type as unknown as $Enums.MediaType,
+                qiniuKey: m.qiniuKey,
+                qiniuUrl: m.qiniuUrl,
+                fileSize: m.fileSize ?? null,
+                mimeType: m.mimeType ?? null,
+                wxMediaId: m.wxMediaId ?? null,
+              })),
+            }
+          : undefined,
       },
     });
   }
@@ -151,11 +163,15 @@ export class NotesService {
    * 更新笔记
    */
   async update(dto: UpdateNoteDto) {
-    const { id, tagIds, ...data } = dto;
+    const { id, tagIds, media, ...data } = dto;
     await this.findById(id);
 
     if (tagIds !== undefined) {
       await this.prisma.noteTag.deleteMany({ where: { noteId: id } });
+    }
+
+    if (media !== undefined) {
+      await this.prisma.noteMedia.deleteMany({ where: { noteId: id } });
     }
 
     return this.prisma.note.update({
@@ -165,6 +181,19 @@ export class NotesService {
         tags: tagIds?.length
           ? { create: tagIds.map((tagId) => ({ tagId })) }
           : undefined,
+        media:
+          media !== undefined
+            ? {
+                create: media.map((m) => ({
+                  type: m.type as unknown as $Enums.MediaType,
+                  qiniuKey: m.qiniuKey,
+                  qiniuUrl: m.qiniuUrl,
+                  fileSize: m.fileSize ?? null,
+                  mimeType: m.mimeType ?? null,
+                  wxMediaId: m.wxMediaId ?? null,
+                })),
+              }
+            : undefined,
       },
       include: {
         category: { select: { id: true, name: true } },
