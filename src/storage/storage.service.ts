@@ -61,6 +61,27 @@ export class StorageService {
   }
 
   /**
+   * 上传文件到七牛云
+   * @param file - multipart 文件对象（含 buffer / mimetype / filename）
+   * @returns 上传结果（含 key、url、mimeType、size）
+   */
+  async uploadFile(file: {
+    buffer: Buffer;
+    mimetype: string;
+    filename: string;
+  }): Promise<{ key: string; url: string; mimeType: string; size: number }> {
+    const ext = file.filename.split('.').pop() || 'bin';
+    const key = `uploads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    await this.uploadBuffer(key, file.buffer);
+    return {
+      key,
+      url: this.getPublicUrl(key),
+      mimeType: file.mimetype,
+      size: file.buffer.length,
+    };
+  }
+
+  /**
    * 获取文件的公开访问 URL
    */
   getPublicUrl(key: string): string {

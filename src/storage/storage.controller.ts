@@ -1,14 +1,31 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { $Enums } from '@prisma/client';
 import { StorageService } from './storage.service';
-import { UploadTokenResponseDto, DeleteFileResponseDto, DeleteFileDto } from './dto';
+import { MediaService } from '../media/media.service';
+import { CurrentUser, type CurrentUserInfo } from '../common/decorators/current-user.decorator';
+import {
+  UploadTokenResponseDto,
+  DeleteFileResponseDto,
+  DeleteFileDto,
+  UploadFileResponseDto,
+} from './dto';
+
+/** MIME 前缀 → Prisma MediaType 映射 */
+function inferMediaType(mimeType: string): $Enums.MediaType {
+  if (mimeType.startsWith('image/')) return $Enums.MediaType.IMAGE;
+  if (mimeType.startsWith('audio/')) return $Enums.MediaType.VOICE;
+  if (mimeType.startsWith('video/')) return $Enums.MediaType.VIDEO;
+  return $Enums.MediaType.FILE;
+}
 
 /**
  * 存储控制器
@@ -18,7 +35,10 @@ import { UploadTokenResponseDto, DeleteFileResponseDto, DeleteFileDto } from './
 @ApiBearerAuth('JWT-auth')
 @Controller('storage')
 export class StorageController {
-  constructor(private readonly storageService: StorageService) {}
+  constructor(
+    private readonly storageService: StorageService,
+    private readonly mediaService: MediaService,
+  ) {}
 
   /**
    * 获取七牛云上传 Token
@@ -40,6 +60,49 @@ export class StorageController {
   async getUploadToken(@Query('key') key?: string) {
     const token = this.storageService.getUploadToken(key || undefined);
     return { token };
+  }
+
+  /**
+   * 上传文件到七牛云（multipart/form-data）并创建媒体记录
+   * POST /storage/upload
+   */
+  @Post('upload')
+  @ApiOperation({ summary: '上传文件到七牛云（multipart/form-data）并创建媒体记录' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary', description: '要上传的文件' },
+        type: {
+          type: 'string',
+          enum: ['IMAGE', 'VOICE', 'VIDEO', 'FILE'],
+          description: '媒体类型（可选，不传则从 MIME 推断）',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: '上传成功，返回媒体记录 ID 和文件信息', type: UploadFileResponseDto })
+  async upload(@Req() req: any, @CurrentUser() user: CurrentUserInfo) {
+    const file = await req.file();
+    const result = await this.storageService.uploadFile(file);
+
+    const typeRaw = (req.body?.type?.value as string) || (req.query?.type as string);
+    const type: $Enums.MediaType = typeRaw
+      ? ($Enums.MediaType as any)[typeRaw]
+      : inferMediaType(result.mimeType);
+
+    const media = await this.mediaService.create({
+      userId: user.id,
+      type,
+      qiniuKey: result.key,
+      qiniuUrl: result.url,
+      fileSize: result.size,
+      mimeType: result.mimeType,
+    });
+
+    return { mediaId: media.id, ...result };
   }
 
   /**
