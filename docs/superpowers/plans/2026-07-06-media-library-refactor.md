@@ -1417,9 +1417,10 @@ it('create: defaults to PENDING', async () => {
 
 it('checkOwnership: valid/invalid split', async () => {
   const m = await service.create({ userId: testUserId, type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
-  const { valid, invalid } = await service.checkOwnership([m.id, 'fake'], testUserId);
+  const nonexistentId = '00000000-0000-0000-0000-000000000000';
+  const { valid, invalid } = await service.checkOwnership([m.id, nonexistentId], testUserId);
   expect(valid).toHaveLength(1);
-  expect(invalid).toEqual(['fake']);
+  expect(invalid).toEqual([nonexistentId]);
 });
 
 it('checkOwnership: rejects wrong userId', async () => {
