@@ -1081,15 +1081,12 @@ git commit -m "feat: add mediaId to upload response, integrate MediaService in S
 **Files:**
 - Modify: `src/queue/processors/wechat-message.processor.ts`
 
-**Context:** Actual constructor (line 37-43):
-```typescript
-constructor(
-  private readonly prisma: PrismaService,
-  private readonly storageService: StorageService,
-  private readonly tokenService: WechatAccessTokenService,
-) { super(); }
-```
-`PrismaService` is already injected. No `NotesService` — use inline `tx.note.*` for transactional safety.
+**Context:** The actual processor:
+- Constructor: `PrismaService` + `StorageService` + `WechatAccessTokenService`
+- `processMedia()`: private, takes `WechatMessageJobData`, creates note + nested NoteMedia in one Prisma call
+- `downloadAndUpload(accessToken, mediaId, msgType)`: returns `{ key, url, mimeType, fileSize } | null`
+- Content formatting is inline (lines 97-107), not a separate method
+- `mediaTypeMap` is a local variable inside `processMedia` (line 130)
 
 **Steps:**
 
@@ -1098,122 +1095,128 @@ constructor(
 ```typescript
 import { MediaService } from '../../media/media.service';
 import { MediaStatus, $Enums } from '@prisma/client';
+// $Enums is already imported (line 7) — just add MediaStatus
 ```
 
-Update constructor:
+Update constructor (add `MediaService`):
 ```typescript
 constructor(
   private readonly prisma: PrismaService,
   private readonly storageService: StorageService,
   private readonly tokenService: WechatAccessTokenService,
   private readonly mediaService: MediaService,  // NEW
-) { super(); }
-```
-
-- [ ] **8.2 Rewrite processMedia() — dedup-first, tx-safe, with picUrl + error fallback**
-
-```typescript
-async processMedia(data: WechatMessage, rawContent: string) {
-  const msgId = data.msgId || String(data.createTime);
-  const msgType = this.mediaTypeMap[data.msgType] || $Enums.MediaType.FILE;
-  const accessToken = await this.tokenService.getAccessToken();
-
-  // 1. 消息去重（在下载/上传之前，避免浪费网络和存储）
-  const existing = await this.prisma.note.findFirst({
-    where: {
-      userId: DEFAULT_USER_ID,
-      meta: { path: ['wechat_msg_id'], equals: msgId },
-    },
-  });
-  if (existing) return existing;
-
-  // 2. 下载微信媒体 + 上传七牛云（网络 I/O，在事务外）
-  let mediaInfo: { key: string; url: string; size: number; mimeType: string } | null = null;
-  let picUrlFallback: string | null = null;
-
-  if (data.mediaId) {
-    try {
-      const result = await this.downloadAndUpload(data.mediaId, data.msgType, accessToken);
-      mediaInfo = { key: result.key, url: result.url, size: 0, mimeType: result.mimeType || 'application/octet-stream' };
-    } catch (err) {
-      console.error('[WechatProcessor] Media download/upload failed, creating note without media:', err);
-    }
-  } else if (data.msgType === 'image' && (data as any).picUrl) {
-    // 图片消息：无 mediaId 但有 picUrl 直链
-    picUrlFallback = (data as any).picUrl;
-  }
-
-  // 3. 事务内：创建 Media + Note + NoteMedia（仅 DB 操作）
-  const note = await this.prisma.$transaction(async (tx) => {
-    let mediaId: string | null = null;
-
-    if (mediaInfo) {
-      const media = await this.mediaService.create({
-        userId: DEFAULT_USER_ID,
-        type: msgType,
-        qiniuKey: mediaInfo.key,
-        qiniuUrl: mediaInfo.url,
-        fileSize: mediaInfo.size,
-        mimeType: mediaInfo.mimeType,
-        wxMediaId: data.mediaId,
-        status: MediaStatus.ATTACHED,
-      }, tx);
-      mediaId = media.id;
-    } else if (picUrlFallback) {
-      const media = await this.mediaService.create({
-        userId: DEFAULT_USER_ID,
-        type: $Enums.MediaType.IMAGE,
-        qiniuKey: picUrlFallback,
-        qiniuUrl: picUrlFallback,
-        wxMediaId: data.mediaId || undefined,
-        status: MediaStatus.ATTACHED,
-      }, tx);
-      mediaId = media.id;
-    }
-
-    // 格式化正文内容
-    const content = this.formatMediaContent(data.msgType, mediaInfo?.url || picUrlFallback || '', rawContent);
-
-    // 创建笔记（使用 tx）
-    const title = content ? content.replace(/\n/g, ' ').trim().slice(0, 100) : '无标题';
-    const note = await tx.note.create({
-      data: {
-        userId: DEFAULT_USER_ID,
-        type: 'DRAFT',
-        source: 'WECHAT',
-        title,
-        content,
-        rawContent,
-        meta: {
-          wechat_msg_id: msgId,
-          wechat_create_time: data.createTime,
-        },
-      },
-    });
-
-    // 创建 NoteMedia 关联
-    if (mediaId) {
-      await tx.noteMedia.create({
-        data: { noteId: note.id, mediaId },
-      });
-    }
-
-    return note;
-  });
-
-  return note;
+) {
+  super();
 }
 ```
 
-- [ ] **8.3 Verify formatMediaContent + downloadAndUpload unchanged**
+- [ ] **8.2 Add dedup check to processMedia()**
 
-Both helper methods remain unchanged. `formatMediaContent(msgType, url, rawContent)` already accepts url as a string.
+Add dedup at the start of `processMedia` (before any network I/O):
 
-- [ ] **8.4 Commit**
+```typescript
+// 消息去重检查（在下载/上传之前）
+const existing = await this.prisma.note.findFirst({
+  where: {
+    userId: DEFAULT_USER_ID,
+    meta: { path: ['wechat_msg_id'], equals: data.msgId },
+  },
+});
+if (existing) return existing;
+```
+
+- [ ] **8.3 Replace nested media.create with MediaService + tx.noteMedia.create**
+
+The current flow (lines 92-177):
+1. Content formatting (inline)
+2. `downloadAndUpload(accessToken, data.mediaId, data.msgType)` — returns null on failure
+3. `this.prisma.note.create()` with nested `media.create[]` — single Prisma call
+
+Change step 3 to use `$transaction` + `MediaService.create()` + `tx.noteMedia.create()`:
+
+```typescript
+// Keep lines 92-135 unchanged (content formatting + downloadAndUpload)
+
+// Keep the existing mediaTypeMap (line 130-135)
+const mediaTypeMap: Record<string, $Enums.MediaType> = {
+  image: $Enums.MediaType.IMAGE,
+  voice: $Enums.MediaType.VOICE,
+  video: $Enums.MediaType.VIDEO,
+  file: $Enums.MediaType.FILE,
+};
+
+// NEW: Replace the single this.prisma.note.create() with a transaction
+return this.prisma.$transaction(async (tx) => {
+  let mediaId: string | null = null;
+
+  // Create Media record if upload succeeded
+  if (mediaInfo) {
+    const media = await this.mediaService.create({
+      userId: DEFAULT_USER_ID,
+      type: mediaTypeMap[data.msgType],
+      qiniuKey: mediaInfo.key,
+      qiniuUrl: mediaInfo.url,
+      wxMediaId: data.mediaId,
+      fileSize: mediaInfo.fileSize,
+      mimeType: mediaInfo.mimeType,
+      status: MediaStatus.ATTACHED,
+    }, tx);
+    mediaId = media.id;
+  } else if (data.picUrl) {
+    // Image with direct picUrl but no download (use Qiniu)
+    const media = await this.mediaService.create({
+      userId: DEFAULT_USER_ID,
+      type: $Enums.MediaType.IMAGE,
+      qiniuKey: data.picUrl,
+      qiniuUrl: data.picUrl,
+      wxMediaId: data.mediaId || undefined,
+      fileSize: 0,
+      mimeType: '',
+      status: MediaStatus.ATTACHED,
+    }, tx);
+    mediaId = media.id;
+  }
+
+  // Create Note (using tx, within transaction)
+  const note = await tx.note.create({
+    data: {
+      userId: DEFAULT_USER_ID,
+      type: $Enums.NoteType.DRAFT,
+      source: $Enums.NoteSource.WECHAT,
+      title,
+      content,
+      rawContent: data.rawContent,
+      meta: {
+        wechat_msg_id: data.msgId,
+        wechat_create_time: data.createTime,
+        media_url: mediaUrl,
+        media_type: data.msgType,
+        ...(data.recognition ? { voice_recognition: data.recognition } : {}),
+        ...(data.linkUrl ? { link_url: data.linkUrl, link_title: data.linkTitle, link_desc: data.linkDescription } : {}),
+      },
+    },
+  });
+
+  // Create NoteMedia association
+  if (mediaId) {
+    await tx.noteMedia.create({
+      data: { noteId: note.id, mediaId },
+    });
+  }
+
+  return note;
+});
+```
+
+- [ ] **8.4 Keep processText() unchanged**
+
+`processText` creates text notes without media — no changes needed.
+
+- [ ] **8.5 Commit**
 
 ```bash
 git add src/queue/processors/wechat-message.processor.ts
-git commit -m "feat: adapt WechatMessageProcessor to new Media model with dedup-first, tx-safe flow"
+git commit -m "feat: adapt WechatMessageProcessor to new Media model with $transaction + dedup"
 ```
 
 ---
@@ -1374,6 +1377,8 @@ import { MediaStatus, $Enums } from '@prisma/client';
 describe('MediaService', () => {
   let service: MediaService;
   let prisma: PrismaService;
+  let testUserId: string;
+  let testNoteId: string;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -1381,11 +1386,23 @@ describe('MediaService', () => {
     }).compile();
     service = module.get<MediaService>(MediaService);
     prisma = module.get<PrismaService>(PrismaService);
+
+    // Create test user and note for FK constraints
+    const user = await prisma.user.create({
+      data: { id: 'test-user-id', wxOpenid: 'test-openid', role: 'ADMIN' },
+    });
+    testUserId = user.id;
+    const note = await prisma.note.create({
+      data: { id: 'test-note-id', userId: testUserId, type: 'DRAFT', source: 'APP_MANUAL', title: 'Test Note' },
+    });
+    testNoteId = note.id;
   });
 
   afterEach(async () => {
     await prisma.noteMedia.deleteMany();
     await prisma.media.deleteMany();
+    await prisma.note.deleteMany();
+    await prisma.user.deleteMany();
   });
 });
 ```
@@ -1394,20 +1411,20 @@ describe('MediaService', () => {
 
 ```typescript
 it('create: defaults to PENDING', async () => {
-  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  const m = await service.create({ userId: testUserId, type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
   expect(m.status).toBe(MediaStatus.PENDING);
 });
 
 it('checkOwnership: valid/invalid split', async () => {
-  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
-  const { valid, invalid } = await service.checkOwnership([m.id, 'fake'], 'u1');
+  const m = await service.create({ userId: testUserId, type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  const { valid, invalid } = await service.checkOwnership([m.id, 'fake'], testUserId);
   expect(valid).toHaveLength(1);
   expect(invalid).toEqual(['fake']);
 });
 
 it('checkOwnership: rejects wrong userId', async () => {
-  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
-  const { invalid } = await service.checkOwnership([m.id], 'u2');
+  const m = await service.create({ userId: testUserId, type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  const { invalid } = await service.checkOwnership([m.id], 'other-user');
   expect(invalid).toEqual([m.id]);
 });
 ```
@@ -1416,16 +1433,16 @@ it('checkOwnership: rejects wrong userId', async () => {
 
 ```typescript
 it('attachToNote: creates association and sets ATTACHED', async () => {
-  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
-  await service.attachToNote('note-1', [m.id], 'u1');
+  const m = await service.create({ userId: testUserId, type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  await service.attachToNote(testNoteId, [m.id], testUserId);
   const updated = await prisma.media.findUnique({ where: { id: m.id } });
   expect(updated!.status).toBe(MediaStatus.ATTACHED);
 });
 
 it('detachFromNote: removes association and orphans', async () => {
-  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u', status: MediaStatus.ATTACHED });
-  await prisma.noteMedia.create({ data: { noteId: 'note-1', mediaId: m.id } });
-  await service.detachFromNote('note-1');
+  const m = await service.create({ userId: testUserId, type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u', status: MediaStatus.ATTACHED });
+  await prisma.noteMedia.create({ data: { noteId: testNoteId, mediaId: m.id } });
+  await service.detachFromNote(testNoteId);
   expect((await prisma.media.findUnique({ where: { id: m.id } }))!.status).toBe(MediaStatus.ORPHAN);
 });
 ```
@@ -1434,9 +1451,9 @@ it('detachFromNote: removes association and orphans', async () => {
 
 ```typescript
 it('findByNoteId: returns media for note', async () => {
-  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
-  await prisma.noteMedia.create({ data: { noteId: 'n1', mediaId: m.id } });
-  expect(await service.findByNoteId('n1')).toHaveLength(1);
+  const m = await service.create({ userId: testUserId, type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  await prisma.noteMedia.create({ data: { noteId: testNoteId, mediaId: m.id } });
+  expect(await service.findByNoteId(testNoteId)).toHaveLength(1);
 });
 
 it('isOrphan: finds media without associations', async () => {
