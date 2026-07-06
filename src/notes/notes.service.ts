@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserService, DEFAULT_USER_ID } from '../user/user.service';
+import { MediaService } from '../media/media.service';
 import { CreateNoteDto } from './dto/create-note.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
 import { QueryNoteDto } from './dto/query-note.dto';
@@ -17,6 +18,7 @@ export class NotesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly userService: UserService,
+    private readonly mediaService: MediaService,
   ) {}
 
   /**
@@ -45,7 +47,7 @@ export class NotesService {
       where.tags = { some: { tagId: tag } };
     }
     if (mediaType) {
-      where.media = { some: { type: mediaType as $Enums.MediaType } };
+      where.media = { some: { media: { type: mediaType as $Enums.MediaType } } };
     }
 
     const [items, total] = await Promise.all([
@@ -75,7 +77,7 @@ export class NotesService {
       include: {
         category: { select: { id: true, name: true } },
         tags: { include: { tag: { select: { id: true, name: true } } } },
-        media: true,
+        media: { include: { media: true } },
       },
     });
 
@@ -83,7 +85,8 @@ export class NotesService {
       throw new BusinessException(ErrorCode.NOTE_NOT_FOUND);
     }
 
-    return note;
+    const result = { ...note, media: note.media.map((nm) => nm.media) };
+    return result;
   }
 
   /**
@@ -93,30 +96,34 @@ export class NotesService {
     const title = dto.title || this.generateTitle(dto.content);
     const uid = userId || DEFAULT_USER_ID;
 
-    return this.prisma.note.create({
-      data: {
-        userId: uid,
-        type: $Enums.NoteType.DRAFT,
-        source: (dto.source as unknown as $Enums.NoteSource) || $Enums.NoteSource.APP_MANUAL,
-        title,
-        content: dto.content,
-        categoryId: dto.categoryId || null,
-        tags: dto.tagIds?.length
-          ? { create: dto.tagIds.map((tagId) => ({ tagId })) }
-          : undefined,
-        media: dto.media?.length
-          ? {
-              create: dto.media.map((m) => ({
-                type: m.type as unknown as $Enums.MediaType,
-                qiniuKey: m.qiniuKey,
-                qiniuUrl: m.qiniuUrl,
-                fileSize: m.fileSize ?? null,
-                mimeType: m.mimeType ?? null,
-                wxMediaId: m.wxMediaId ?? null,
-              })),
-            }
-          : undefined,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const note = await tx.note.create({
+        data: {
+          userId: uid,
+          type: $Enums.NoteType.DRAFT,
+          source: (dto.source as unknown as $Enums.NoteSource) || $Enums.NoteSource.APP_MANUAL,
+          title,
+          content: dto.content,
+          categoryId: dto.categoryId || null,
+          tags: dto.tagIds?.length
+            ? { create: dto.tagIds.map((tagId) => ({ tagId })) }
+            : undefined,
+        },
+      });
+
+      if (dto.mediaIds?.length) {
+        await this.mediaService.attachToNote(note.id, dto.mediaIds, uid, tx);
+      }
+
+      const result = await tx.note.findUnique({
+        where: { id: note.id },
+        include: {
+          category: { select: { id: true, name: true } },
+          tags: { include: { tag: { select: { id: true, name: true } } } },
+          media: { include: { media: true } },
+        },
+      });
+      return { ...result!, media: result!.media.map((nm) => nm.media) };
     });
   }
 
@@ -162,43 +169,37 @@ export class NotesService {
   /**
    * 更新笔记
    */
-  async update(dto: UpdateNoteDto) {
-    const { id, tagIds, media, ...data } = dto;
-    await this.findById(id);
+  async update(dto: UpdateNoteDto, userId?: string) {
+    const { id, tagIds, mediaIds, ...data } = dto;
+    const uid = userId || DEFAULT_USER_ID;
 
-    if (tagIds !== undefined) {
-      await this.prisma.noteTag.deleteMany({ where: { noteId: id } });
-    }
+    await this.findById(id, uid);
 
-    if (media !== undefined) {
-      await this.prisma.noteMedia.deleteMany({ where: { noteId: id } });
-    }
+    return this.prisma.$transaction(async (tx) => {
+      if (tagIds !== undefined) {
+        await tx.noteTag.deleteMany({ where: { noteId: id } });
+      }
 
-    return this.prisma.note.update({
-      where: { id },
-      data: {
-        ...data,
-        tags: tagIds?.length
-          ? { create: tagIds.map((tagId) => ({ tagId })) }
-          : undefined,
-        media:
-          media !== undefined
-            ? {
-                create: media.map((m) => ({
-                  type: m.type as unknown as $Enums.MediaType,
-                  qiniuKey: m.qiniuKey,
-                  qiniuUrl: m.qiniuUrl,
-                  fileSize: m.fileSize ?? null,
-                  mimeType: m.mimeType ?? null,
-                  wxMediaId: m.wxMediaId ?? null,
-                })),
-              }
-            : undefined,
-      },
-      include: {
-        category: { select: { id: true, name: true } },
-        tags: { include: { tag: { select: { id: true, name: true } } } },
-      },
+      if (mediaIds !== undefined) {
+        await this.mediaService.detachFromNote(id, tx);
+        if (mediaIds.length > 0) {
+          await this.mediaService.attachToNote(id, mediaIds, uid, tx);
+        }
+      }
+
+      const note = await tx.note.update({
+        where: { id },
+        data: {
+          ...data,
+          tags: tagIds?.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
+        },
+        include: {
+          category: { select: { id: true, name: true } },
+          tags: { include: { tag: { select: { id: true, name: true } } } },
+          media: { include: { media: true } },
+        },
+      });
+      return { ...note, media: note.media.map((nm) => nm.media) };
     });
   }
 
@@ -250,10 +251,7 @@ export class NotesService {
    * 获取笔记关联的多媒体列表
    */
   async getMedia(noteId: string) {
-    return this.prisma.noteMedia.findMany({
-      where: { noteId },
-      orderBy: { createdAt: 'asc' },
-    });
+    return this.mediaService.findByNoteId(noteId);
   }
 
   /**

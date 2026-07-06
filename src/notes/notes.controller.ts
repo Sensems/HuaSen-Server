@@ -48,8 +48,8 @@ export class NotesController {
   @Post('update')
   @ApiOperation({ summary: '更新笔记' })
   @ApiResponse({ status: 200, description: '成功更新笔记' })
-  async update(@Body() dto: UpdateNoteDto) {
-    return this.notesService.update(dto);
+  async update(@Body() dto: UpdateNoteDto, @CurrentUser() user: CurrentUserInfo) {
+    return this.notesService.update(dto, user?.id);
   }
 
   @Post('delete')

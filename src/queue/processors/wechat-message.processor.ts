@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { WechatAccessTokenService } from '../../wechat/wechat-access-token.service';
 import { DEFAULT_USER_ID } from '../../user/user.service';
-import { $Enums } from '@prisma/client';
+import { $Enums, MediaStatus } from '@prisma/client';
 import axios from 'axios';
 
 /** 微信消息队列 Job 数据 */
@@ -49,6 +49,7 @@ export class WechatMessageProcessor extends WorkerHost {
    */
   async process(job: Job<WechatMessageJobData, any, string>): Promise<any> {
     const data = job.data;
+    console.log(`[WechatProcessor] Processing job: msgId=${data.msgId}, type=${data.msgType}, attempt=${job.attemptsMade + 1}`);
 
     switch (data.msgType) {
       case 'text':
@@ -70,7 +71,7 @@ export class WechatMessageProcessor extends WorkerHost {
   private async processText(data: WechatMessageJobData) {
     const title = this.generateTitle(data.content || '');
 
-    return this.prisma.note.create({
+    const note = await this.prisma.note.create({
       data: {
         userId: DEFAULT_USER_ID,
         type: $Enums.NoteType.DRAFT,
@@ -84,6 +85,8 @@ export class WechatMessageProcessor extends WorkerHost {
         },
       },
     });
+    console.log(`[WechatProcessor] Note created: id=${note.id}, title="${title}", msgId=${data.msgId}`);
+    return note;
   }
 
   /**
@@ -134,46 +137,61 @@ export class WechatMessageProcessor extends WorkerHost {
       file: $Enums.MediaType.FILE,
     };
 
-    return this.prisma.note.create({
-      data: {
-        userId: DEFAULT_USER_ID,
-        type: $Enums.NoteType.DRAFT,
-        source: $Enums.NoteSource.WECHAT,
-        title,
-        content,
-        rawContent: data.rawContent,
-        meta: {
-          wechat_msg_id: data.msgId,
-          wechat_create_time: data.createTime,
-          media_url: mediaUrl,
-          media_type: data.msgType,
-          ...(data.recognition ? { voice_recognition: data.recognition } : {}),
-          ...(data.linkUrl ? { link_url: data.linkUrl, link_title: data.linkTitle, link_desc: data.linkDescription } : {}),
+    return this.prisma.$transaction(async (tx) => {
+      const note = await tx.note.create({
+        data: {
+          userId: DEFAULT_USER_ID,
+          type: $Enums.NoteType.DRAFT,
+          source: $Enums.NoteSource.WECHAT,
+          title,
+          content,
+          rawContent: data.rawContent,
+          meta: {
+            wechat_msg_id: data.msgId,
+            wechat_create_time: data.createTime,
+            media_url: mediaUrl,
+            media_type: data.msgType,
+            ...(data.recognition ? { voice_recognition: data.recognition } : {}),
+            ...(data.linkUrl ? { link_url: data.linkUrl, link_title: data.linkTitle, link_desc: data.linkDescription } : {}),
+          },
         },
-        ...(mediaInfo ? {
-          media: {
-            create: [{
-              type: mediaTypeMap[data.msgType],
-              qiniuKey: mediaInfo.key,
-              qiniuUrl: mediaInfo.url,
-              wxMediaId: data.mediaId,
-              fileSize: mediaInfo.fileSize,
-              mimeType: mediaInfo.mimeType,
-            }],
+      });
+
+      if (mediaInfo) {
+        const media = await tx.media.create({
+          data: {
+            userId: DEFAULT_USER_ID,
+            type: mediaTypeMap[data.msgType],
+            qiniuKey: mediaInfo.key,
+            qiniuUrl: mediaInfo.url,
+            wxMediaId: data.mediaId || null,
+            fileSize: mediaInfo.fileSize,
+            mimeType: mediaInfo.mimeType,
+            status: MediaStatus.ATTACHED,
           },
-        } : data.picUrl ? {
-          media: {
-            create: [{
-              type: $Enums.MediaType.IMAGE,
-              qiniuKey: data.picUrl,
-              qiniuUrl: data.picUrl,
-              wxMediaId: data.mediaId || null,
-              fileSize: 0,
-              mimeType: '',
-            }],
+        });
+        await tx.noteMedia.create({
+          data: { noteId: note.id, mediaId: media.id },
+        });
+      } else if (data.picUrl) {
+        const media = await tx.media.create({
+          data: {
+            userId: DEFAULT_USER_ID,
+            type: $Enums.MediaType.IMAGE,
+            qiniuKey: data.picUrl,
+            qiniuUrl: data.picUrl,
+            wxMediaId: data.mediaId || null,
+            fileSize: 0,
+            mimeType: '',
+            status: MediaStatus.ATTACHED,
           },
-        } : {}),
-      },
+        });
+        await tx.noteMedia.create({
+          data: { noteId: note.id, mediaId: media.id },
+        });
+      }
+
+      return note;
     });
   }
 
