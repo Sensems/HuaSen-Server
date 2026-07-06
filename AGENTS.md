@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-07-03
+**Generated:** 2026-07-06
 **Stack:** NestJS 11 + Fastify + Prisma 7 + PostgreSQL + Redis/BullMQ + TypeScript 6
 
 ## OVERVIEW
@@ -14,14 +14,15 @@ src/
 ├── common/              # 跨模块基础设施 → see common/AGENTS.md
 ├── auth/                # JWT + 微信 OAuth → see auth/AGENTS.md
 ├── wechat/              # 微信消息回调 → see wechat/AGENTS.md
-├── notes/               # 笔记 CRUD + 状态流转
-├── categories/          # 分类树 + 拖拽排序
-├── tags/                # 标签 upsert
+├── notes/               # 笔记 CRUD + 状态流转 → see notes/AGENTS.md
+├── categories/          # 分类树 + 拖拽排序 → see categories/AGENTS.md
+├── tags/                # 标签 upsert → see tags/AGENTS.md
+├── media/               # 媒体生命周期管理 → see media/AGENTS.md
 ├── user/                # 用户服务
 ├── config/              # 配置（NestJS ConfigService）
 ├── prisma/              # PrismaService（@Global）
-├── queue/               # BullMQ 队列配置
-└── storage/             # 七牛云上传/删除
+├── queue/               # BullMQ 队列配置 → see queue/AGENTS.md
+└── storage/             # 七牛云上传/删除 → see storage/AGENTS.md
 ```
 
 ## WHERE TO LOOK
@@ -31,6 +32,8 @@ src/
 | 修改数据模型 | `prisma/schema.prisma` → `npx prisma migrate dev` |
 | 添加认证 | `auth/guards/jwt-auth.guard.ts`，用 `@Public()` 豁免 |
 | 微信消息处理 | `wechat/wechat.service.ts` → `queue/processors/wechat-message.processor.ts` |
+| 媒体上传/关联 | `storage/storage.service.ts`（七牛云）→ `media/media.service.ts`（DB 生命周期） |
+| 队列/异步任务 | `queue/queue.module.ts` → `queue/processors/` |
 | 环境配置 | `.env` → `config/configuration.ts` |
 
 ## CONVENTIONS
@@ -59,7 +62,7 @@ npm run test:e2e             # E2E 测试（需要 PostgreSQL + Redis）
 ```
 
 ## NOTES
-- `nest build` 有时因 tsbuildinfo 缓存不产出文件，用 `npx tsc --project tsconfig.build.json` 替代
+- `nest build` 有时因 tsbuildinfo 缓存不产出文件，`start:dev` 已指定 `-p tsconfig.build.json`（`incremental: false`）
 - 微信去重索引需手动执行 SQL：`CREATE UNIQUE INDEX ... ON notes ((meta->>'wechat_msg_id'))`
 - 多媒体上传需要 `WECHAT_APP_SECRET` 获取 access_token
 - Redis 不可用时 BullMQ 队列功能不可用，但 REST API 仍正常工作

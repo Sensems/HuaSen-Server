@@ -1,0 +1,1242 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/auth/wechat/callback": {
+      "post": {
+        "operationId": "AuthController_wechatLogin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WechatCallbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功，返回 access_token 与 refresh_token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "微信授权失败（code 无效或已过期）"
+          }
+        },
+        "summary": "微信 OAuth 登录",
+        "tags": ["认证"]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "刷新成功，返回新的 access_token 与 refresh_token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "refresh_token 无效或已过期"
+          }
+        },
+        "summary": "刷新 access_token",
+        "tags": ["认证"]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "登出成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未登录或 token 无效"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "登出（将当前 token 加入黑名单）",
+        "tags": ["认证"]
+      }
+    },
+    "/notes": {
+      "get": {
+        "operationId": "NotesController_list",
+        "parameters": [
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "笔记类型筛选（draft/published/archived）",
+            "schema": {
+              "example": "published",
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "按分类 ID 筛选",
+            "schema": {
+              "example": "clxyz1234567890abcdef",
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "description": "按标签 ID 筛选（命中关联该标签的笔记）",
+            "schema": {
+              "example": "tag_abc123",
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "required": false,
+            "in": "query",
+            "description": "关键词模糊搜索（匹配标题或正文）",
+            "schema": {
+              "example": "森花笔记",
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaType",
+            "required": false,
+            "in": "query",
+            "description": "按媒体类型筛选",
+            "schema": {
+              "example": "IMAGE",
+              "type": "string",
+              "enum": ["IMAGE", "VOICE", "VIDEO", "FILE"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回分页后的笔记列表"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "获取笔记列表（分页 + 筛选）",
+        "tags": ["笔记"]
+      }
+    },
+    "/notes/detail": {
+      "get": {
+        "operationId": "NotesController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "query",
+            "description": "笔记 ID",
+            "schema": {
+              "example": "clxyz1234567890abcdef"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回笔记详情（含分类、标签、媒体）"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "获取笔记详情",
+        "tags": ["笔记"]
+      }
+    },
+    "/notes/create": {
+      "post": {
+        "operationId": "NotesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建笔记"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "创建笔记",
+        "tags": ["笔记"]
+      }
+    },
+    "/notes/update": {
+      "post": {
+        "operationId": "NotesController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新笔记"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "更新笔记",
+        "tags": ["笔记"]
+      }
+    },
+    "/notes/delete": {
+      "post": {
+        "operationId": "NotesController_delete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功软删除笔记"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "软删除笔记",
+        "tags": ["笔记"]
+      }
+    },
+    "/notes/publish": {
+      "post": {
+        "operationId": "NotesController_publish",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功发布笔记"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "发布笔记（草稿 → 已发布）",
+        "tags": ["笔记"]
+      }
+    },
+    "/notes/archive": {
+      "post": {
+        "operationId": "NotesController_archive",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功切换归档状态"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "归档或取消归档笔记",
+        "tags": ["笔记"]
+      }
+    },
+    "/notes/media": {
+      "get": {
+        "operationId": "NotesController_media",
+        "parameters": [
+          {
+            "name": "note_id",
+            "required": true,
+            "in": "query",
+            "description": "笔记 ID",
+            "schema": {
+              "example": "clxyz1234567890abcdef",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回该笔记下的多媒体资源列表"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "获取笔记关联的多媒体列表",
+        "tags": ["笔记"]
+      }
+    },
+    "/notes/share": {
+      "get": {
+        "operationId": "NotesController_share",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "query",
+            "description": "笔记 ID",
+            "schema": {
+              "example": "clxyz1234567890abcdef"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回分享所需的精简信息"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "获取笔记分享信息",
+        "tags": ["笔记"]
+      }
+    },
+    "/categories": {
+      "get": {
+        "operationId": "CategoriesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "分类树形列表，每个节点包含子分类与笔记数",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "获取当前用户的分类树（按 sortOrder 升序）",
+        "tags": ["分类"]
+      }
+    },
+    "/categories/create": {
+      "post": {
+        "operationId": "CategoriesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功，返回新分类",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数校验失败或超过层级限制"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "创建分类（同级下名称不可重复，最多 3 层）",
+        "tags": ["分类"]
+      }
+    },
+    "/categories/update": {
+      "post": {
+        "operationId": "CategoriesController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功，返回最新分类",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "参数校验失败或父分类非法"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "更新分类名称或父分类",
+        "tags": ["分类"]
+      }
+    },
+    "/categories/delete": {
+      "post": {
+        "operationId": "CategoriesController_delete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "删除成功，返回被删除的分类",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "删除分类（递归删除子孙，关联笔记解除分类）",
+        "tags": ["分类"]
+      }
+    },
+    "/categories/reorder": {
+      "post": {
+        "operationId": "CategoriesController_reorder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "排序完成，返回新的分类树",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "批量更新分类排序与父级（事务执行）",
+        "tags": ["分类"]
+      }
+    },
+    "/tags": {
+      "get": {
+        "operationId": "TagsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "标签列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TagResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "获取所有标签（含笔记数量）",
+        "tags": ["标签"]
+      }
+    },
+    "/tags/create": {
+      "post": {
+        "operationId": "TagsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "标签信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "创建标签（已存在则返回已有）",
+        "tags": ["标签"]
+      }
+    },
+    "/tags/delete": {
+      "post": {
+        "operationId": "TagsController_delete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已删除的标签",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "删除标签（同时解绑所有关联笔记）",
+        "tags": ["标签"]
+      }
+    },
+    "/wechat/callback": {
+      "get": {
+        "operationId": "WechatController_verify",
+        "parameters": [
+          {
+            "name": "echostr",
+            "required": true,
+            "in": "query",
+            "description": "随机字符串，验证通过时原样返回",
+            "schema": {}
+          },
+          {
+            "name": "nonce",
+            "required": true,
+            "in": "query",
+            "description": "随机数",
+            "schema": {}
+          },
+          {
+            "name": "timestamp",
+            "required": true,
+            "in": "query",
+            "description": "时间戳",
+            "schema": {}
+          },
+          {
+            "name": "signature",
+            "required": true,
+            "in": "query",
+            "description": "微信加密签名（sha1(token + timestamp + nonce)）",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "验证成功时原样返回 echostr；验证失败时返回字符串 \"verification failed\"（纯文本，非 JSON）"
+          }
+        },
+        "summary": "微信服务器 URL 验证（GET 回调）",
+        "tags": ["微信"]
+      },
+      "post": {
+        "operationId": "WechatController_receive",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "处理完成后必须返回纯文本 \"success\"（微信服务器要求，不能返回 JSON，失败时也返回 success 由 Worker 重试）"
+          }
+        },
+        "summary": "接收微信消息事件（POST 回调）",
+        "tags": ["微信"]
+      }
+    },
+    "/storage/upload-token": {
+      "get": {
+        "operationId": "StorageController_getUploadToken",
+        "parameters": [
+          {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "description": "七牛云对象存储的文件 key（不传则生成 scope 为整个 bucket 的 Token）",
+            "schema": {
+              "example": "notes/2026/07/clxyz1234567890abcdef.jpg",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "返回七牛云直传 Token，有效期 1 小时",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadTokenResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "获取七牛云直传 Token（App 端走直传）",
+        "tags": ["存储"]
+      }
+    },
+    "/storage/delete": {
+      "post": {
+        "operationId": "StorageController_delete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteFileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "返回是否删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteFileResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "删除七牛云上的文件",
+        "tags": ["存储"]
+      }
+    },
+    "/storage/upload": {
+      "post": {
+        "operationId": "StorageController_upload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "要上传的文件"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上传成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadFileResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "上传文件到七牛云（multipart/form-data）",
+        "tags": ["存储"]
+      }
+    }
+  },
+  "info": {
+    "title": "森花笔记 API",
+    "description": "微信公众号驱动的个人笔记系统",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "JWT-auth": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "name": "JWT",
+        "description": "请输入 JWT Token",
+        "in": "header"
+      }
+    },
+    "schemas": {
+      "WechatCallbackDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "微信授权回调 code",
+            "example": "081aB6tM0xj3bV1eYz2oM1tLqM0aB6tM"
+          }
+        },
+        "required": ["code"]
+      },
+      "TokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "访问令牌（access_token，2 小时有效）",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "refreshToken": {
+            "type": "string",
+            "description": "刷新令牌（refresh_token，7 天有效）",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "expiresIn": {
+            "type": "number",
+            "description": "access_token 过期时间（秒）",
+            "example": 7200
+          }
+        },
+        "required": ["accessToken", "refreshToken", "expiresIn"]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "description": "刷新令牌（refresh_token）",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          }
+        },
+        "required": ["refreshToken"]
+      },
+      "LogoutResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "登出是否成功",
+            "example": true
+          }
+        },
+        "required": ["success"]
+      },
+      "NoteMediaItemDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "多媒体类型",
+            "enum": ["image", "voice", "video", "file"],
+            "example": "image"
+          },
+          "qiniuKey": {
+            "type": "string",
+            "description": "七牛云存储 Key",
+            "example": "notes/2026/07/abc123.jpg"
+          },
+          "qiniuUrl": {
+            "type": "string",
+            "description": "七牛云访问 URL",
+            "example": "http://cdn.example.com/notes/2026/07/abc123.jpg"
+          },
+          "fileSize": {
+            "type": "number",
+            "description": "文件大小（字节）",
+            "example": 102400
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME 类型",
+            "example": "image/jpeg"
+          },
+          "wxMediaId": {
+            "type": "string",
+            "description": "微信临时素材 ID",
+            "example": "wx_media_abc123"
+          }
+        },
+        "required": ["type", "qiniuKey", "qiniuUrl"]
+      },
+      "CreateNoteDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "笔记标题，留空时自动从正文截取前 100 字符",
+            "example": "我的第一篇笔记"
+          },
+          "content": {
+            "type": "string",
+            "description": "笔记正文内容",
+            "example": "这是笔记的正文内容..."
+          },
+          "source": {
+            "type": "string",
+            "description": "笔记来源",
+            "enum": ["wechat", "app_clipboard", "app_manual"],
+            "example": "app_manual"
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "所属分类 ID",
+            "example": "clxyz1234567890abcdef"
+          },
+          "tagIds": {
+            "description": "关联标签 ID 列表",
+            "example": ["tag_abc123", "tag_def456"],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "media": {
+            "description": "笔记关联的多媒体列表",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NoteMediaItemDto"
+            }
+          }
+        }
+      },
+      "UpdateNoteDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "要更新的笔记 ID",
+            "example": "clxyz1234567890abcdef"
+          },
+          "title": {
+            "type": "string",
+            "description": "新的笔记标题",
+            "example": "更新后的标题"
+          },
+          "content": {
+            "type": "string",
+            "description": "新的笔记正文内容",
+            "example": "更新后的正文内容..."
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "新的分类 ID（传空字符串或省略表示不修改）",
+            "example": "clxyz1234567890abcdef"
+          },
+          "tagIds": {
+            "description": "新的标签 ID 列表（传空数组可清空已有标签）",
+            "example": ["tag_abc123"],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "media": {
+            "description": "笔记关联的多媒体列表",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NoteMediaItemDto"
+            }
+          }
+        },
+        "required": ["id"]
+      },
+      "IdDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "分类 ID",
+            "example": "clxxxxxxxxxxxxxxxx"
+          },
+          "name": {
+            "type": "string",
+            "description": "分类名称",
+            "example": "工作"
+          },
+          "parentId": {
+            "type": "object",
+            "description": "父分类 ID，顶级分类为 null",
+            "example": null,
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "排序值，数字越小越靠前",
+            "example": 0
+          },
+          "notesCount": {
+            "type": "number",
+            "description": "该分类下关联的笔记数量",
+            "example": 12
+          },
+          "children": {
+            "description": "子分类列表（树形结构）",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryDto"
+            }
+          }
+        },
+        "required": ["id", "name", "sortOrder", "notesCount"]
+      },
+      "CreateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "分类名称",
+            "example": "工作",
+            "maxLength": 64
+          },
+          "parentId": {
+            "type": "string",
+            "description": "父分类 ID，顶层分类可不传；最多 3 层嵌套",
+            "example": "clxxxxxxxxxxxxxxxx",
+            "nullable": true
+          }
+        },
+        "required": ["name"]
+      },
+      "UpdateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "要更新的分类 ID",
+            "example": "clxxxxxxxxxxxxxxxx"
+          },
+          "name": {
+            "type": "string",
+            "description": "新的分类名称",
+            "example": "学习",
+            "maxLength": 64
+          },
+          "parentId": {
+            "type": "string",
+            "description": "新的父分类 ID，传 null 表示升级为顶层；不能设为自身或自身子孙",
+            "example": "clxxxxxxxxxxxxxxxx",
+            "nullable": true
+          }
+        },
+        "required": ["id"]
+      },
+      "ReorderItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "被排序的分类 ID",
+            "example": "clxxxxxxxxxxxxxxxx"
+          },
+          "parentId": {
+            "type": "object",
+            "description": "新的父分类 ID；null 表示移动到顶层",
+            "example": null,
+            "nullable": true
+          }
+        },
+        "required": ["id"]
+      },
+      "ReorderCategoryDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "排序项列表，数组下标即新的 sortOrder 值",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReorderItem"
+            }
+          }
+        },
+        "required": ["items"]
+      },
+      "TagResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "标签 ID（UUID）",
+            "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          },
+          "name": {
+            "type": "string",
+            "description": "标签名称",
+            "example": "随笔"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "创建时间",
+            "example": "2026-07-03T10:00:00.000Z"
+          },
+          "_count": {
+            "type": "object",
+            "description": "关联笔记数量（仅 list 接口返回）",
+            "example": 5
+          }
+        },
+        "required": ["id", "name", "createdAt"]
+      },
+      "CreateTagDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "标签名称",
+            "maxLength": 32,
+            "example": "随笔"
+          }
+        },
+        "required": ["name"]
+      },
+      "UploadTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "七牛云直传凭证 Token（有效期 1 小时，App 端使用该 Token 走直传）",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InNlbmh1YS1ub3RlcyIsImRlYWRsaW5lIjoxNzMyNDM2NDAwfQ.signature"
+          }
+        },
+        "required": ["token"]
+      },
+      "DeleteFileDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "七牛云文件 key",
+            "example": "notes/2026/07/image.jpg"
+          }
+        },
+        "required": ["key"]
+      },
+      "DeleteFileResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "七牛云侧文件是否删除成功（true=成功，false=失败）",
+            "example": true
+          }
+        },
+        "required": ["success"]
+      },
+      "UploadFileResponseDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "文件在七牛云存储的 Key（唯一标识，后续可用于访问或删除）",
+            "example": "notes/2026/07/abc123.jpg"
+          },
+          "url": {
+            "type": "string",
+            "description": "文件公开访问 URL（七牛云 CDN 域名拼接）",
+            "example": "http://cdn.example.com/notes/2026/07/abc123.jpg"
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "文件 MIME 类型（如 image/jpeg、video/mp4）",
+            "example": "image/jpeg"
+          },
+          "size": {
+            "type": "number",
+            "description": "文件大小（字节）",
+            "example": 204800
+          }
+        },
+        "required": ["key", "url", "mimeType", "size"]
+      }
+    }
+  }
+}
