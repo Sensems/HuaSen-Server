@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { appConfig, wechatConfig, qiniuConfig } from './config/configuration';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { HttpLoggerInterceptor } from './common/interceptors/http-logger.interceptor';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
@@ -14,6 +15,7 @@ import { TagsModule } from './tags/tags.module';
 import { WechatModule } from './wechat/wechat.module';
 import { QueueModule } from './queue/queue.module';
 import { StorageModule } from './storage/storage.module';
+import { MediaModule } from './media/media.module';
 
 /**
  * 应用根模块
@@ -35,10 +37,12 @@ import { StorageModule } from './storage/storage.module';
     WechatModule,
     QueueModule,
     StorageModule,
+    MediaModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: HttpLoggerInterceptor },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
 })
