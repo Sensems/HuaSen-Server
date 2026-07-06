@@ -1,12 +1,15 @@
 import { Controller, Get, Post, Body, Query, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBadRequestResponse,
   ApiBody,
   ApiConsumes,
+  ApiNotFoundResponse,
   ApiOperation,
   ApiQuery,
   ApiResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { $Enums } from '@prisma/client';
 import { StorageService } from './storage.service';
@@ -57,6 +60,8 @@ export class StorageController {
     description: '返回七牛云直传 Token，有效期 1 小时',
     type: UploadTokenResponseDto,
   })
+  @ApiUnauthorizedResponse({ description: '未认证，需要 Bearer Token' })
+  @ApiBadRequestResponse({ description: '参数校验失败' })
   async getUploadToken(@Query('key') key?: string) {
     const token = this.storageService.getUploadToken(key || undefined);
     return { token };
@@ -82,8 +87,17 @@ export class StorageController {
         },
       },
     },
+    examples: {
+      '上传图片': {
+        value: { type: 'IMAGE' },
+        description: '上传图片文件',
+      },
+    },
   })
   @ApiResponse({ status: 200, description: '上传成功，返回媒体记录 ID 和文件信息', type: UploadFileResponseDto })
+  @ApiResponse({ status: 400, description: '文件为空或格式不支持' })
+  @ApiUnauthorizedResponse({ description: '未认证，需要 Bearer Token' })
+  @ApiBadRequestResponse({ description: '参数校验失败' })
   async upload(@Req() req: any, @CurrentUser() user: CurrentUserInfo) {
     const file = await req.file();
     const result = await this.storageService.uploadFile(file);
@@ -111,12 +125,23 @@ export class StorageController {
    */
   @Post('delete')
   @ApiOperation({ summary: '删除七牛云上的文件' })
-  @ApiBody({ type: DeleteFileDto })
+  @ApiBody({
+    type: DeleteFileDto,
+    examples: {
+      '删除文件': {
+        value: { key: 'notes/2026/07/image.jpg' },
+        description: '根据七牛云 key 删除文件',
+      },
+    },
+  })
   @ApiResponse({
     status: 200,
     description: '返回是否删除成功',
     type: DeleteFileResponseDto,
   })
+  @ApiUnauthorizedResponse({ description: '未认证，需要 Bearer Token' })
+  @ApiBadRequestResponse({ description: '参数校验失败' })
+  @ApiNotFoundResponse({ description: '文件不存在' })
   async delete(@Body() body: DeleteFileDto) {
     const ok = await this.storageService.deleteFile(body.key);
     return { success: ok };

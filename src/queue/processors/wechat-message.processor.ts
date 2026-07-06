@@ -3,7 +3,8 @@ import { Job } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { WechatAccessTokenService } from '../../wechat/wechat-access-token.service';
-import { DEFAULT_USER_ID } from '../../user/user.service';
+import { WechatReplyService } from '../../wechat/wechat-reply.service';
+import { UserService, DEFAULT_USER_ID } from '../../user/user.service';
 import { $Enums, MediaStatus } from '@prisma/client';
 import axios from 'axios';
 
@@ -14,6 +15,10 @@ export interface WechatMessageJobData {
   rawContent: string;
   msgId: string;
   createTime: number;
+  /** 发送者 openid（FromUserName） */
+  fromUserName: string;
+  /** 接收者（公众号原始 ID，用于回复） */
+  toUserName: string;
   /** 媒体文件 ID（图片/语音/视频/文件） */
   mediaId?: string;
   /** 图片 URL（仅图片消息） */
@@ -30,7 +35,7 @@ export interface WechatMessageJobData {
 
 /**
  * 微信消息处理器
- * 后台异步处理微信消息：多媒体下载 → 七牛云上传 → 创建笔记
+ * 后台异步处理微信消息：多媒体下载 → 七牛云上传 → 创建笔记 → 客服消息回复
  */
 @Processor('wechat-message')
 export class WechatMessageProcessor extends WorkerHost {
@@ -38,6 +43,8 @@ export class WechatMessageProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly tokenService: WechatAccessTokenService,
+    private readonly userService: UserService,
+    private readonly replyService: WechatReplyService,
   ) {
     super();
   }
@@ -51,29 +58,48 @@ export class WechatMessageProcessor extends WorkerHost {
     const data = job.data;
     console.log(`[WechatProcessor] Processing job: msgId=${data.msgId}, type=${data.msgType}, attempt=${job.attemptsMade + 1}`);
 
+    // 根据 openid 查找或创建用户
+    const user = await this.userService.findOrCreateByWechat(data.fromUserName);
+    const userId = user.id;
+    console.log(`[WechatProcessor] User resolved: ${userId === DEFAULT_USER_ID ? 'DEFAULT' : userId.slice(0, 8)}...`);
+
+    let note: any = null;
+
     switch (data.msgType) {
       case 'text':
-        return this.processText(data);
+        note = await this.processText(data, userId);
+        break;
       case 'image':
       case 'voice':
       case 'video':
       case 'file':
-        return this.processMedia(data);
+        note = await this.processMedia(data, userId);
+        break;
       default:
         console.log(`[WechatProcessor] Unknown msgType: ${data.msgType}, ignored`);
         return null;
     }
+
+    // 笔记创建成功后，发送客服消息确认
+    if (note && data.fromUserName) {
+      const confirmText = data.msgType === 'text'
+        ? `笔记「${note.title || '无标题'}」已保存 ✅`
+        : `${this.getMediaTypeLabel(data.msgType)}笔记已保存 ✅`;
+      await this.replyService.sendText(data.fromUserName, confirmText);
+    }
+
+    return note;
   }
 
   /**
    * 处理文本消息：直接创建笔记
    */
-  private async processText(data: WechatMessageJobData) {
+  private async processText(data: WechatMessageJobData, userId: string) {
     const title = this.generateTitle(data.content || '');
 
     const note = await this.prisma.note.create({
       data: {
-        userId: DEFAULT_USER_ID,
+        userId,
         type: $Enums.NoteType.DRAFT,
         source: $Enums.NoteSource.WECHAT,
         title,
@@ -82,6 +108,7 @@ export class WechatMessageProcessor extends WorkerHost {
         meta: {
           wechat_msg_id: data.msgId,
           wechat_create_time: data.createTime,
+          from_user_name: data.fromUserName || undefined,
         },
       },
     });
@@ -92,7 +119,7 @@ export class WechatMessageProcessor extends WorkerHost {
   /**
    * 处理多媒体消息：下载 → 上传七牛云 → 创建笔记并关联 NoteMedia
    */
-  private async processMedia(data: WechatMessageJobData) {
+  private async processMedia(data: WechatMessageJobData, userId: string) {
     const accessToken = await this.tokenService.getAccessToken();
     let content = '';
     let mediaUrl = '';
@@ -102,7 +129,7 @@ export class WechatMessageProcessor extends WorkerHost {
       mediaUrl = data.picUrl;
       content = '[图片]';
     } else if (data.msgType === 'voice') {
-      content = data.recognition ? `[语音识别] ${data.recognition}` : '[语音]';
+      content = data.recognition || '[语音]';
     } else if (data.msgType === 'video') {
       content = '[视频]';
     } else if (data.msgType === 'file') {
@@ -140,7 +167,7 @@ export class WechatMessageProcessor extends WorkerHost {
     return this.prisma.$transaction(async (tx) => {
       const note = await tx.note.create({
         data: {
-          userId: DEFAULT_USER_ID,
+          userId,
           type: $Enums.NoteType.DRAFT,
           source: $Enums.NoteSource.WECHAT,
           title,
@@ -149,6 +176,7 @@ export class WechatMessageProcessor extends WorkerHost {
           meta: {
             wechat_msg_id: data.msgId,
             wechat_create_time: data.createTime,
+            from_user_name: data.fromUserName || undefined,
             media_url: mediaUrl,
             media_type: data.msgType,
             ...(data.recognition ? { voice_recognition: data.recognition } : {}),
@@ -160,7 +188,7 @@ export class WechatMessageProcessor extends WorkerHost {
       if (mediaInfo) {
         const media = await tx.media.create({
           data: {
-            userId: DEFAULT_USER_ID,
+            userId,
             type: mediaTypeMap[data.msgType],
             qiniuKey: mediaInfo.key,
             qiniuUrl: mediaInfo.url,
@@ -176,7 +204,7 @@ export class WechatMessageProcessor extends WorkerHost {
       } else if (data.picUrl) {
         const media = await tx.media.create({
           data: {
-            userId: DEFAULT_USER_ID,
+            userId,
             type: $Enums.MediaType.IMAGE,
             qiniuKey: data.picUrl,
             qiniuUrl: data.picUrl,
@@ -252,5 +280,18 @@ export class WechatMessageProcessor extends WorkerHost {
     if (!content) return '无标题';
     const clean = content.replace(/\n/g, ' ').trim();
     return clean.length > 100 ? clean.slice(0, 100) : clean;
+  }
+
+  /**
+   * 获取媒体类型的中文标签
+   */
+  private getMediaTypeLabel(msgType: string): string {
+    const labelMap: Record<string, string> = {
+      image: '📷 图片',
+      voice: '🎤 语音',
+      video: '🎬 视频',
+      file: '📎 文件',
+    };
+    return labelMap[msgType] || '媒体';
   }
 }

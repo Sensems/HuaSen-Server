@@ -1,163 +1,39 @@
 {
   "schema_version": 2,
-  "active_work_id": "add-upload-api",
+  "active_work_id": "add-swagger-gaps",
   "works": {
+    "add-swagger-gaps": {
+      "work_id": "add-swagger-gaps",
+      "active_plan": "D:\\lbs\\demo\\senhua-notes-server\\.omo\\plans\\add-swagger-gaps.md",
+      "plan_name": "add-swagger-gaps",
+      "status": "completed",
+      "started_at": "2026-07-06T07:51:32.573Z",
+      "updated_at": "2026-07-06T08:06:29.228Z",
+      "session_ids": [
+        "opencode:ses_0c99869b5ffeLx4Jc9n3lhyTKj"
+      ],
+      "session_origins": {},
+      "ended_at": "2026-07-06T08:06:29.228Z",
+      "elapsed_ms": 896655,
+      "task_sessions": {}
+    },
     "add-upload-api": {
       "work_id": "add-upload-api",
-      "active_plan": "D:\\lbs\\demo\\senhua-notes-server\\.omo\\plans\\add-upload-api.md",
-      "plan_name": "add-upload-api",
-      "status": "active",
-      "started_at": "2026-07-04T04:12:29.440Z",
-      "updated_at": "2026-07-04T04:19:39.053Z",
-      "session_ids": [
-        "opencode:ses_0d4ac0f04ffefQu1H5QRQdf91o"
-      ],
-      "session_origins": {
-        "opencode:ses_0d4ac0f04ffefQu1H5QRQdf91o": "direct"
-      },
-      "agent": "atlas",
-      "task_sessions": {
-        "todo:1": {
-          "task_key": "todo:1",
-          "task_label": "1",
-          "task_title": "安装 @fastify/multipart 依赖",
-          "session_id": "opencode:ses_0d4a9bc6fffeSJGNJ43Q0GGcLy",
-          "agent": "Sisyphus-Junior",
-          "category": "quick",
-          "updated_at": "2026-07-04T04:15:53.625Z",
-          "started_at": "2026-07-04T04:15:50.252Z",
-          "status": "completed",
-          "ended_at": "2026-07-04T04:15:53.625Z",
-          "elapsed_ms": 3373
-        },
-        "todo:2": {
-          "task_key": "todo:2",
-          "task_label": "2",
-          "task_title": "在 main.ts 注册 Fastify multipart 插件",
-          "session_id": "opencode:ses_0d4a8cb10ffeemUxXsQSlUuIIu",
-          "agent": "Sisyphus-Junior",
-          "category": "quick",
-          "updated_at": "2026-07-04T04:17:09.863Z",
-          "started_at": "2026-07-04T04:16:47.013Z",
-          "status": "completed",
-          "ended_at": "2026-07-04T04:17:09.863Z",
-          "elapsed_ms": 22850
-        },
-        "todo:5": {
-          "task_key": "todo:5",
-          "task_label": "5",
-          "task_title": "StorageController 新增 POST /storage/upload 端点",
-          "session_id": "opencode:ses_0d4a7a0e5ffeBn0k3L3dZYT2yr",
-          "agent": "Sisyphus-Junior",
-          "category": "quick",
-          "updated_at": "2026-07-04T04:18:14.148Z",
-          "started_at": "2026-07-04T04:18:03.389Z",
-          "status": "completed",
-          "ended_at": "2026-07-04T04:18:14.148Z",
-          "elapsed_ms": 10759
-        },
-        "todo:6": {
-          "task_key": "todo:6",
-          "task_label": "6",
-          "task_title": "更新 Swagger 标签和验证构建",
-          "session_id": "opencode:ses_0d4a6abebffeP7u89wB5Ck439z",
-          "agent": "Sisyphus-Junior",
-          "category": "quick",
-          "updated_at": "2026-07-04T04:18:52.765Z",
-          "started_at": "2026-07-04T04:18:41.869Z",
-          "status": "completed",
-          "ended_at": "2026-07-04T04:18:52.765Z",
-          "elapsed_ms": 10896
-        },
-        "final-wave:f1": {
-          "task_key": "final-wave:f1",
-          "task_label": "F1",
-          "task_title": "代码审查 — 上传逻辑正确，无遗漏字段",
-          "session_id": "opencode:ses_0d4a5fcb0ffeXbfkpnTzr8glQn",
-          "agent": "Sisyphus-Junior",
-          "category": "unspecified-low",
-          "updated_at": "2026-07-04T04:19:39.053Z",
-          "started_at": "2026-07-04T04:19:39.053Z",
-          "status": "running"
-        }
-      }
+      "status": "completed",
+      "session_ids": [],
+      "session_origins": {}
     }
   },
+  "status": "completed",
+  "active_plan": "D:\\lbs\\demo\\senhua-notes-server\\.omo\\plans\\add-swagger-gaps.md",
+  "plan_name": "add-swagger-gaps",
   "session_ids": [
-    "opencode:ses_0d4ac0f04ffefQu1H5QRQdf91o"
+    "opencode:ses_0c99869b5ffeLx4Jc9n3lhyTKj"
   ],
-  "session_origins": {
-    "opencode:ses_0d4ac0f04ffefQu1H5QRQdf91o": "direct"
-  },
-  "active_plan": "D:\\lbs\\demo\\senhua-notes-server\\.omo\\plans\\add-upload-api.md",
-  "plan_name": "add-upload-api",
-  "status": "active",
-  "started_at": "2026-07-04T04:12:29.440Z",
-  "updated_at": "2026-07-04T04:19:39.053Z",
-  "agent": "atlas",
-  "task_sessions": {
-    "todo:1": {
-      "task_key": "todo:1",
-      "task_label": "1",
-      "task_title": "安装 @fastify/multipart 依赖",
-      "session_id": "opencode:ses_0d4a9bc6fffeSJGNJ43Q0GGcLy",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-07-04T04:15:53.625Z",
-      "started_at": "2026-07-04T04:15:50.252Z",
-      "status": "completed",
-      "ended_at": "2026-07-04T04:15:53.625Z",
-      "elapsed_ms": 3373
-    },
-    "todo:2": {
-      "task_key": "todo:2",
-      "task_label": "2",
-      "task_title": "在 main.ts 注册 Fastify multipart 插件",
-      "session_id": "opencode:ses_0d4a8cb10ffeemUxXsQSlUuIIu",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-07-04T04:17:09.863Z",
-      "started_at": "2026-07-04T04:16:47.013Z",
-      "status": "completed",
-      "ended_at": "2026-07-04T04:17:09.863Z",
-      "elapsed_ms": 22850
-    },
-    "todo:5": {
-      "task_key": "todo:5",
-      "task_label": "5",
-      "task_title": "StorageController 新增 POST /storage/upload 端点",
-      "session_id": "opencode:ses_0d4a7a0e5ffeBn0k3L3dZYT2yr",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-07-04T04:18:14.148Z",
-      "started_at": "2026-07-04T04:18:03.389Z",
-      "status": "completed",
-      "ended_at": "2026-07-04T04:18:14.148Z",
-      "elapsed_ms": 10759
-    },
-    "todo:6": {
-      "task_key": "todo:6",
-      "task_label": "6",
-      "task_title": "更新 Swagger 标签和验证构建",
-      "session_id": "opencode:ses_0d4a6abebffeP7u89wB5Ck439z",
-      "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-07-04T04:18:52.765Z",
-      "started_at": "2026-07-04T04:18:41.869Z",
-      "status": "completed",
-      "ended_at": "2026-07-04T04:18:52.765Z",
-      "elapsed_ms": 10896
-    },
-    "final-wave:f1": {
-      "task_key": "final-wave:f1",
-      "task_label": "F1",
-      "task_title": "代码审查 — 上传逻辑正确，无遗漏字段",
-      "session_id": "opencode:ses_0d4a5fcb0ffeXbfkpnTzr8glQn",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-low",
-      "updated_at": "2026-07-04T04:19:39.053Z",
-      "started_at": "2026-07-04T04:19:39.053Z",
-      "status": "running"
-    }
-  }
+  "session_origins": {},
+  "task_sessions": {},
+  "started_at": "2026-07-06T07:51:32.573Z",
+  "ended_at": "2026-07-06T08:06:29.228Z",
+  "elapsed_ms": 896655,
+  "updated_at": "2026-07-06T08:06:29.228Z"
 }

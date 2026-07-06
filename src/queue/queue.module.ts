@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { QueueAdminService } from './queue-admin.service';
+import { QueueAdminController } from './queue-admin.controller';
 
 /**
  * 任务队列模块
@@ -29,6 +31,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       },
     }),
   ],
+  controllers: [QueueAdminController],
+  providers: [QueueAdminService],
   exports: [BullModule],
 })
 export class QueueModule {}

@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { WechatService } from './wechat.service';
 import { WechatVerifyParams } from './types/wechat-message.types';
@@ -10,6 +11,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
  * 所有接口公开（微信服务器回调，不走 JWT）
  */
 @Public()
+@ApiTags('微信')
 @Controller('wechat')
 export class WechatController {
   constructor(private readonly wechatService: WechatService) {}
@@ -31,6 +33,7 @@ export class WechatController {
   /**
    * 接收微信消息事件
    * POST /wechat/callback
+   * 返回加密的被动回复 XML（微信 5 秒内交付给用户）
    */
   @Post('callback')
   async receive(
@@ -42,12 +45,13 @@ export class WechatController {
     console.log(`[WechatController] Received POST body length: ${body?.length ?? 'NULL'} bytes`);
 
     try {
-      await this.wechatService.handleMessage(body);
-      console.log('[WechatController] Message processed successfully');
+      const reply = await this.wechatService.handleMessage(body);
+      console.log(`[WechatController] Reply length: ${reply.length} bytes`);
+      res.header('Content-Type', 'text/xml').send(reply);
     } catch (err) {
       console.error('[WechatController] handleMessage threw:', err);
+      // 即使异常也必须返回非空字符串，否则微信会重试
+      res.header('Content-Type', 'text/plain').send('success');
     }
-
-    res.header('Content-Type', 'text/plain').send('success');
   }
 }

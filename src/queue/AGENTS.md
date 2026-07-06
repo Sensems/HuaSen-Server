@@ -7,6 +7,8 @@ BullMQ + Redis 队列基础设施：全局连接配置、队列注册、导出 B
 ```
 queue/
 ├── queue.module.ts                       # BullModule.forRootAsync + registerQueue
+├── queue-admin.controller.ts             # 队列管理 REST API（GET /admin/queues）
+├── queue-admin.service.ts                # 队列状态查询 + 操作（无外部依赖）
 └── processors/
     └── wechat-message.processor.ts       # 微信消息 Worker（唯一 Processor）
 ```
@@ -29,7 +31,8 @@ Redis queue → WorkerHost(WechatMessageProcessor).process(job)
 | 调整重试/退避策略 | `queue.module.ts` 的 `defaultJobOptions` |
 | 新增队列 | `queue.module.ts` 再加 `BullModule.registerQueue`，并在使用模块注入 `@InjectQueue` |
 | 调试 Worker 处理逻辑 | `processors/wechat-message.processor.ts` |
-| 查看队列状态 | Redis key `bull:wechat-message:*` |
+| 查看队列状态 | `GET /admin/queues` — 返回 counts / failedJobs / workers |
+| 重试失败任务 | `POST /admin/queues/retry` |
 | 生产者入队代码 | `wechat/wechat.service.ts:handleMessage` |
 
 ## CONVENTIONS
