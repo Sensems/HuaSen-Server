@@ -20,6 +20,13 @@ enum MediaType {
   FILE
 }
 
+/** 媒体状态 */
+enum MediaStatus {
+  PENDING
+  ATTACHED
+  ORPHAN
+}
+
 /** 用户角色 */
 enum UserRole {
   ADMIN
@@ -47,6 +54,7 @@ model User {
 
   notes      Note[]
   categories Category[]
+  media      Media[]
 
   @@map("users")
 }
@@ -78,21 +86,38 @@ model Note {
   @@map("notes")
 }
 
-/** 笔记多媒体表 */
+/** 笔记-多媒体多对多关联表 */
 model NoteMedia {
-  id        String    @id @default(uuid()) @db.Uuid
-  noteId    String    @map("note_id") @db.Uuid
-  type      MediaType
-  qiniuKey  String?   @map("qiniu_key") @db.VarChar(512)
-  qiniuUrl  String?   @map("qiniu_url") @db.VarChar(512)
-  wxMediaId String?   @map("wx_media_id") @db.VarChar(128)
-  fileSize  Int?      @map("file_size")
-  mimeType  String?   @map("mime_type") @db.VarChar(64)
-  createdAt DateTime  @default(now()) @map("created_at")
+  noteId  String @map("note_id") @db.Uuid
+  mediaId String @map("media_id") @db.Uuid
 
-  note Note @relation(fields: [noteId], references: [id])
+  note  Note  @relation(fields: [noteId], references: [id])
+  media Media @relation(fields: [mediaId], references: [id])
 
+  @@id([noteId, mediaId])
   @@map("note_media")
+}
+
+/** 媒体表（独立实体，上传即入库） */
+model Media {
+  id         String       @id @default(uuid()) @db.Uuid
+  userId     String       @map("user_id") @db.Uuid
+  type       MediaType
+  qiniuKey   String       @map("qiniu_key") @db.VarChar(512)
+  qiniuUrl   String       @map("qiniu_url") @db.VarChar(512)
+  wxMediaId  String?      @map("wx_media_id") @db.VarChar(128)
+  fileSize   Int?         @map("file_size")
+  mimeType   String?      @map("mime_type") @db.VarChar(64)
+  status     MediaStatus  @default(PENDING)
+  uploadedAt DateTime     @default(now()) @map("uploaded_at")
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  user  User        @relation(fields: [userId], references: [id])
+  notes NoteMedia[]
+
+  @@index([userId, status])
+  @@map("media")
 }
 
 /** 分类表 */
