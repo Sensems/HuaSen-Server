@@ -68,6 +68,10 @@ model NoteMedia {
 - `media NoteMedia[]` 关系不变
 - 查媒体详情：`include: { media: { include: { media: true } } }`，Service 层拍平为 `note.media.map(nm => ({ id: nm.media.id, type: nm.media.type, qiniuKey: nm.media.qiniuKey, ... }))`
 
+### User 模型变动
+
+- 新增 `media Media[]` 关系（Media 的 `user` 反向关联），Prisma 要求 relation 两侧都定义
+
 ### Media.type 推断规则
 
 当用户通过 `POST /storage/upload` 上传文件时，`Media.type` 从 MIME 类型自动推断：
@@ -108,8 +112,8 @@ model NoteMedia {
 
 | 接口 | 变更 |
 |------|------|
-| `POST /notes/create` | DTO `media` → `mediaIds?: string[]`（UUID 数组）。创建笔记后调用 `mediaService.attachToNote()`，同时支持 create 时直接传入 mediaIds |
-| `POST /notes/update` | 同上 `media` → `mediaIds`。先 `detachFromNote` 解绑旧媒体再 `attachToNote` 绑定新媒体，整过程在 `prisma.$transaction` 内 |
+| `POST /notes/create` | DTO `media` → `mediaIds?: string[]`（UUID 数组）。创建笔记后调用 `mediaService.attachToNote()`（整个 create + attach 在 `prisma.$transaction` 内），同时支持 create 时直接传入 mediaIds |
+| `POST /notes/update` | Controller 新增 `@CurrentUser()`，Service `update(dto, userId)`。DTO `media` → `mediaIds`。先 `detachFromNote` 解绑旧媒体再 `attachToNote` 绑定新媒体，整过程在 `prisma.$transaction` 内 |
 | `GET /notes/detail` | `include: { media: { include: { media: true } } }`，Service 层拍平 `note.media.map(nm => nm.media)` |
 | `GET /notes` | mediaType 筛选改为 `where.media = { some: { media: { type: mediaType as MediaType } } }` |
 | `GET /notes/media` | 委托 `MediaService.findByNoteId()`（NotesService 内部注入 MediaService） |
@@ -127,7 +131,7 @@ model NoteMedia {
 
 | 接口 | 说明 |
 |------|------|
-| `POST /media/check` | 批量校验 mediaIds 归属 + status=PENDING。返回 `{ valid: string[], invalid: string[] }`（invalid 列表供前端提示），不抛异常 |
+| `POST /media/check` | 批量校验 mediaIds 归属 + status=PENDING。返回 `{ valid: string[], invalid: string[] }`（Controller 层从 `checkOwnership` 返回的 `Media[]` 中提取 `.id`），不抛异常 |
 
 ---
 
@@ -157,10 +161,11 @@ model NoteMedia {
 
 ### 微信流程适配
 
-`WechatMessageProcessor.processMedia()`（在 `prisma.$transaction` 内）：
-1. 下载微信媒体 → 上传七牛云
-2. 创建 Media (status=ATTACHED, userId=DEFAULT_USER_ID)
-3. 创建 Note + NoteMedia 关联
+`WechatMessageProcessor.processMedia()`：
+1. 下载微信媒体 → 上传七牛云（网络 I/O，在事务外）
+2. `prisma.$transaction` 内：
+   - 创建 Media (status=ATTACHED, userId=DEFAULT_USER_ID)
+   - 创建 Note + NoteMedia 关联
 
 ---
 
@@ -193,6 +198,8 @@ src/
 ├── queue/processors/
 │   └── wechat-message.processor.ts  # 适配新 Media 创建方式，使用 $transaction
 ├── app.module.ts               # 注册 MediaModule
+├── common/decorators/
+│   └── current-user.decorator.ts  # 提取 CurrentUserInfo 接口为共享类型（避免 storage.controller.ts 重复定义）
 └── common/constants/
     └── error-codes.ts          # 新增 5xxxx 段错误码
 ```
@@ -202,7 +209,7 @@ src/
 ```typescript
 class MediaService {
   /** 上传后创建 Media 记录（storage controller 调用） */
-  create(params: { userId: string; type: MediaType; qiniuKey: string; qiniuUrl: string; fileSize?: number; mimeType?: string; wxMediaId?: string }): Promise<Media>;
+  create(params: { userId: string; type: MediaType; qiniuKey: string; qiniuUrl: string; fileSize?: number; mimeType?: string; wxMediaId?: string; status?: MediaStatus }): Promise<Media>;
 
   /** 批量校验 mediaIds 是否属于 userId 且 status=PENDING，返回有效/无效分组 */
   checkOwnership(mediaIds: string[], userId: string): Promise<{ valid: Media[]; invalid: string[] }>;
