@@ -17,12 +17,14 @@
 | 1. Prisma schema + migration | - | 2, 3 |
 | 2. Error codes (5xxxx) | - | 1, 3 |
 | 3. CurrentUserInfo extraction | - | 1, 2 |
-| 4. MediaModule | 1, 2 | 5 |
-| 5. Notes DTOs | 1 | 4 |
-| 6. NotesService | 4, 5 | 7 |
+| 4. MediaModule | 1, 2 | 5, 11 |
+| 5. Notes DTOs | 1 | 4, 11 |
+| 6. NotesService + Controller | 3, 4, 5 | 7 |
 | 7. StorageController + DTO | 3, 4 | 6 |
-| 8. WechatMessageProcessor | 4 | 9 |
-| 9. Module imports | 4, 6, 7, 8 | - |
+| 8. WechatMessageProcessor | 4 | 9, 11 |
+| 9. Module imports | 4, 6, 8 | - |
+| 10. Build verification + cleanup | all | - |
+| 11. MediaService unit tests | 4 | 5, 8 |
 | 10. Build verification + cleanup | all | - |
 
 ### Parallel Waves
@@ -32,7 +34,8 @@ Wave 1 (parallel):  Task 1 ─┬─ Task 2 ─┬─ Task 3
                             │          │
 Wave 2 (parallel):  Task 4 ─┤          │
                     Task 5 ─┘          │
-                                       │
+                    Task 11 ─┤         │
+                            │          │
 Wave 3 (parallel):  Task 6 ────────────┤
                     Task 7 ────────────┤
                                        │
@@ -120,13 +123,20 @@ In `User` model, after `categories Category[]`, add:
   media    Media[]
 ```
 
-- [ ] **1.5 Run migration**
+- [ ] **1.5 Run prisma migrate (create-only to avoid interactive prompt)**
 
 ```bash
-npx prisma migrate dev --name add-media-library
+npx prisma migrate dev --create-only --name add-media-library
 ```
 
-Expected: Migration creates `media` table, drops old `note_media` columns, rebuilds with new structure. Exit code 0.
+Expected: Creates migration SQL in `prisma/migrations/`. Review the generated SQL to confirm it adds `media` table, adds `MediaStatus` enum, drops old `note_media` columns, and rebuilds `note_media` as join table.
+
+Then apply:
+```bash
+npx prisma migrate dev
+```
+
+Expected: Applies migration without prompting (schema already matches after --create-only). Exit code 0. `prisma generate` runs automatically as part of migrate dev.
 
 - [ ] **1.6 Commit**
 
@@ -263,12 +273,12 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/constants/error-codes';
-import { MediaStatus, Media, Prisma } from '@prisma/client';
+import { MediaStatus, Media, Prisma, $Enums } from '@prisma/client';
 
 /** 创建 Media 所需参数 */
 interface CreateMediaParams {
   userId: string;
-  type: string;
+  type: $Enums.MediaType;
   qiniuKey: string;
   qiniuUrl: string;
   fileSize?: number;
@@ -287,13 +297,15 @@ export class MediaService {
 
   /**
    * 上传后创建 Media 记录
+   * @param tx - 可选事务客户端，在事务内调用时传入
    * @returns 创建的 Media 对象
    */
-  async create(params: CreateMediaParams): Promise<Media> {
-    return this.prisma.media.create({
+  async create(params: CreateMediaParams, tx?: Prisma.TransactionClient): Promise<Media> {
+    const client = tx || this.prisma;
+    return client.media.create({
       data: {
         userId: params.userId,
-        type: params.type as any,
+        type: params.type,
         qiniuKey: params.qiniuKey,
         qiniuUrl: params.qiniuUrl,
         fileSize: params.fileSize ?? null,
@@ -311,10 +323,12 @@ export class MediaService {
   async checkOwnership(
     mediaIds: string[],
     userId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<{ valid: Media[]; invalid: string[] }> {
+    const client = tx || this.prisma;
     if (!mediaIds.length) return { valid: [], invalid: [] };
 
-    const mediaRecords = await this.prisma.media.findMany({
+    const mediaRecords = await client.media.findMany({
       where: { id: { in: mediaIds } },
     });
 
@@ -346,11 +360,11 @@ export class MediaService {
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const client = tx || this.prisma;
-    const { invalid } = await this.checkOwnership(mediaIds, userId);
+    const { invalid } = await this.checkOwnership(mediaIds, userId, tx);
 
     if (invalid.length > 0) {
       const first = invalid[0];
-      const media = await this.prisma.media.findUnique({ where: { id: first } });
+      const media = await client.media.findUnique({ where: { id: first } });
       if (!media) {
         throw new BusinessException(ErrorCode.MEDIA_NOT_FOUND);
       }
@@ -697,6 +711,19 @@ git commit -m "feat: replace media DTO field with mediaIds in create/update note
 
 **Steps:**
 
+- [ ] **6.0 Update NotesController update() signature**
+
+In `src/notes/notes.controller.ts`, change the `update()` method to accept `@CurrentUser()`:
+
+```typescript
+@Post('update')
+@ApiOperation({ summary: '更新笔记' })
+@ApiResponse({ status: 200, description: '成功更新笔记' })
+async update(@Body() dto: UpdateNoteDto, @CurrentUser() user: CurrentUserInfo) {
+  return this.notesService.update(dto, user?.id);
+}
+```
+
 - [ ] **6.1 Add MediaService import and injection**
 
 Replace import lines:
@@ -756,7 +783,7 @@ async create(dto: CreateNoteDto, userId?: string) {
       await this.mediaService.attachToNote(note.id, dto.mediaIds, uid, tx);
     }
 
-    return tx.note.findUnique({
+    const result = await tx.note.findUnique({
       where: { id: note.id },
       include: {
         category: { select: { id: true, name: true } },
@@ -764,6 +791,8 @@ async create(dto: CreateNoteDto, userId?: string) {
         media: { include: { media: true } },
       },
     });
+    // 拍平 media: NoteMedia[] → Media[]
+    return { ...result!, media: result!.media.map((nm) => nm.media) };
   });
 }
 ```
@@ -795,7 +824,7 @@ async update(dto: UpdateNoteDto, userId?: string) {
       }
     }
 
-    return tx.note.update({
+    const note = await tx.note.update({
       where: { id },
       data: {
         ...data,
@@ -809,6 +838,8 @@ async update(dto: UpdateNoteDto, userId?: string) {
         media: { include: { media: true } },
       },
     });
+    // 拍平 media: NoteMedia[] → Media[]
+    return { ...note, media: note.media.map((nm) => nm.media) };
   });
 }
 ```
@@ -945,14 +976,14 @@ import {
   DeleteFileResponseDto, DeleteFileDto,
 } from './dto';
 import { CurrentUser, CurrentUserInfo } from '../common/decorators/current-user.decorator';
-import { MediaType } from '../common/enums';
+import { $Enums } from '@prisma/client';
 
-/** MIME 前缀 → MediaType 映射 */
-function inferMediaType(mimeType: string): MediaType {
-  if (mimeType.startsWith('image/')) return MediaType.IMAGE;
-  if (mimeType.startsWith('audio/')) return MediaType.VOICE;
-  if (mimeType.startsWith('video/')) return MediaType.VIDEO;
-  return MediaType.FILE;
+/** MIME 前缀 → Prisma MediaType 映射 */
+function inferMediaType(mimeType: string): $Enums.MediaType {
+  if (mimeType.startsWith('image/')) return $Enums.MediaType.IMAGE;
+  if (mimeType.startsWith('audio/')) return $Enums.MediaType.VOICE;
+  if (mimeType.startsWith('video/')) return $Enums.MediaType.VIDEO;
+  return $Enums.MediaType.FILE;
 }
 
 // ... (keep existing controller decorators) ...
@@ -997,9 +1028,15 @@ export class StorageController {
     const file = await req.file();
     const result = await this.storageService.uploadFile(file);
 
+    // Type from form field or query param; fallback to MIME inference
+    const typeRaw = (req.body?.type?.value as string) || req.query?.type as string;
+    const type: $Enums.MediaType = typeRaw
+      ? ($Enums.MediaType as any)[typeRaw]
+      : inferMediaType(result.mimeType);
+
     const media = await this.mediaService.create({
       userId: user.id,
-      type: req.body?.type?.value || inferMediaType(result.mimeType),
+      type,
       qiniuKey: result.key,
       qiniuUrl: result.url,
       fileSize: result.size,
@@ -1044,103 +1081,139 @@ git commit -m "feat: add mediaId to upload response, integrate MediaService in S
 **Files:**
 - Modify: `src/queue/processors/wechat-message.processor.ts`
 
-**Steps:**
-
-- [ ] **8.1 Add MediaService import and injection**
-
-Add import:
-```typescript
-import { MediaService } from '../../media/media.service';
-```
-
-Inject in constructor (alongside existing dependencies):
+**Context:** Actual constructor (line 37-43):
 ```typescript
 constructor(
-  private readonly notesService: NotesService,
-  private readonly wechatAccessToken: WechatAccessTokenService,
+  private readonly prisma: PrismaService,
   private readonly storageService: StorageService,
-  private readonly mediaService: MediaService,  // NEW
-) {}
+  private readonly tokenService: WechatAccessTokenService,
+) { super(); }
 ```
+`PrismaService` is already injected. No `NotesService` — use inline `tx.note.*` for transactional safety.
 
-- [ ] **8.2 Rewrite processMedia() flow**
+**Steps:**
 
-The current flow (`processMedia` method ~line 92-178) does:
-1. Download from WeChat
-2. Upload to Qiniu
-3. Create Note + nested NoteMedia
-
-Change to:
-1. Download from WeChat → upload to Qiniu (OUTSIDE transaction)
-2. `prisma.$transaction`:
-   - Create Media (status=ATTACHED, userId=DEFAULT_USER_ID)
-   - Create Note
-   - Create NoteMedia association
-
-The key change is replacing the Prisma nested create with explicit Media creation + association. Pseudocode for the new flow:
+- [ ] **8.1 Add MediaService injection + Prisma imports**
 
 ```typescript
-// Step 1: Download & upload (outside transaction) — existing code, unchanged
-const qiniuResult = await this.downloadAndUpload(mediaId, msgType, accessToken);
-const noteContent = this.formatMediaContent(msgType, qiniuResult.url, rawContent);
+import { MediaService } from '../../media/media.service';
+import { MediaStatus, $Enums } from '@prisma/client';
+```
 
-// Step 2: Transaction — create Media + Note + NoteMedia
-const note = await this.prisma.$transaction(async (tx) => {
-  // Create Media record
-  const media = await this.mediaService.create({
-    userId: DEFAULT_USER_ID,
-    type: mediaType,
-    qiniuKey: qiniuResult.key,
-    qiniuUrl: qiniuResult.url,
-    fileSize: qiniuResult.size,
-    mimeType: qiniuResult.mimeType,
-    wxMediaId: mediaId,
-    status: 'ATTACHED',  // Directly ATTACHED for wechat flow
+Update constructor:
+```typescript
+constructor(
+  private readonly prisma: PrismaService,
+  private readonly storageService: StorageService,
+  private readonly tokenService: WechatAccessTokenService,
+  private readonly mediaService: MediaService,  // NEW
+) { super(); }
+```
+
+- [ ] **8.2 Rewrite processMedia() — dedup-first, tx-safe, with picUrl + error fallback**
+
+```typescript
+async processMedia(data: WechatMessage, rawContent: string) {
+  const msgId = data.msgId || String(data.createTime);
+  const msgType = this.mediaTypeMap[data.msgType] || $Enums.MediaType.FILE;
+  const accessToken = await this.tokenService.getAccessToken();
+
+  // 1. 消息去重（在下载/上传之前，避免浪费网络和存储）
+  const existing = await this.prisma.note.findFirst({
+    where: {
+      userId: DEFAULT_USER_ID,
+      meta: { path: ['wechat_msg_id'], equals: msgId },
+    },
   });
+  if (existing) return existing;
 
-  // Create Note
-  const note = await this.notesService.createFromWechat({
-    content: noteContent,
-    rawContent: rawContent,
-    msgId: msgId,
-    createTime: createTime,
-  });
+  // 2. 下载微信媒体 + 上传七牛云（网络 I/O，在事务外）
+  let mediaInfo: { key: string; url: string; size: number; mimeType: string } | null = null;
+  let picUrlFallback: string | null = null;
 
-  // Create NoteMedia association
-  await tx.noteMedia.create({
-    data: { noteId: note.id, mediaId: media.id },
+  if (data.mediaId) {
+    try {
+      const result = await this.downloadAndUpload(data.mediaId, data.msgType, accessToken);
+      mediaInfo = { key: result.key, url: result.url, size: 0, mimeType: result.mimeType || 'application/octet-stream' };
+    } catch (err) {
+      console.error('[WechatProcessor] Media download/upload failed, creating note without media:', err);
+    }
+  } else if (data.msgType === 'image' && (data as any).picUrl) {
+    // 图片消息：无 mediaId 但有 picUrl 直链
+    picUrlFallback = (data as any).picUrl;
+  }
+
+  // 3. 事务内：创建 Media + Note + NoteMedia（仅 DB 操作）
+  const note = await this.prisma.$transaction(async (tx) => {
+    let mediaId: string | null = null;
+
+    if (mediaInfo) {
+      const media = await this.mediaService.create({
+        userId: DEFAULT_USER_ID,
+        type: msgType,
+        qiniuKey: mediaInfo.key,
+        qiniuUrl: mediaInfo.url,
+        fileSize: mediaInfo.size,
+        mimeType: mediaInfo.mimeType,
+        wxMediaId: data.mediaId,
+        status: MediaStatus.ATTACHED,
+      }, tx);
+      mediaId = media.id;
+    } else if (picUrlFallback) {
+      const media = await this.mediaService.create({
+        userId: DEFAULT_USER_ID,
+        type: $Enums.MediaType.IMAGE,
+        qiniuKey: picUrlFallback,
+        qiniuUrl: picUrlFallback,
+        wxMediaId: data.mediaId || undefined,
+        status: MediaStatus.ATTACHED,
+      }, tx);
+      mediaId = media.id;
+    }
+
+    // 格式化正文内容
+    const content = this.formatMediaContent(data.msgType, mediaInfo?.url || picUrlFallback || '', rawContent);
+
+    // 创建笔记（使用 tx）
+    const title = content ? content.replace(/\n/g, ' ').trim().slice(0, 100) : '无标题';
+    const note = await tx.note.create({
+      data: {
+        userId: DEFAULT_USER_ID,
+        type: 'DRAFT',
+        source: 'WECHAT',
+        title,
+        content,
+        rawContent,
+        meta: {
+          wechat_msg_id: msgId,
+          wechat_create_time: data.createTime,
+        },
+      },
+    });
+
+    // 创建 NoteMedia 关联
+    if (mediaId) {
+      await tx.noteMedia.create({
+        data: { noteId: note.id, mediaId },
+      });
+    }
+
+    return note;
   });
 
   return note;
-});
+}
 ```
 
-Note: `createFromWechat` currently creates Note without media, so the association is done separately via `noteMedia.create`. This keeps `createFromWechat` unchanged.
+- [ ] **8.3 Verify formatMediaContent + downloadAndUpload unchanged**
 
-If `createFromWechat` does its own dedup check (line 134-142) and returns existing note, skip media creation entirely:
-
-```typescript
-// Check dedup first
-const existing = await this.prisma.note.findFirst({
-  where: {
-    userId: DEFAULT_USER_ID,
-    meta: { path: ['wechat_msg_id'], equals: msgId },
-  },
-});
-if (existing) return existing;
-
-// Proceed with download + upload + create
-```
-
-- [ ] **8.3 Add PrismaService injection (if not already)**
-
-The processor needs `PrismaService` for `$transaction` and `findFirst`. Check if already injected. If not, add to constructor.
+Both helper methods remain unchanged. `formatMediaContent(msgType, url, rawContent)` already accepts url as a string.
 
 - [ ] **8.4 Commit**
 
 ```bash
 git add src/queue/processors/wechat-message.processor.ts
-git commit -m "feat: adapt WechatMessageProcessor to new Media model with $transaction"
+git commit -m "feat: adapt WechatMessageProcessor to new Media model with dedup-first, tx-safe flow"
 ```
 
 ---
@@ -1244,18 +1317,9 @@ npx prisma generate
 
 Expected: Exit code 0.
 
-- [ ] **10.4 Verify NotesController update() signature**
+- [ ] **10.4 Verify NotesController has @CurrentUser() on update**
 
-`src/notes/notes.controller.ts` line 59 — update method now needs `@CurrentUser()`:
-
-```typescript
-@Post('update')
-@ApiOperation({ summary: '更新笔记' })
-@ApiResponse({ status: 200, description: '成功更新笔记' })
-async update(@Body() dto: UpdateNoteDto, @CurrentUser() user: CurrentUserInfo) {
-  return this.notesService.update(dto, user?.id);
-}
-```
+Confirm `src/notes/notes.controller.ts` `update()` method has `@CurrentUser() user: CurrentUserInfo` and passes `user?.id` to service. (Done in Task 6.0, verify here.)
 
 - [ ] **10.5 Clean up unused imports**
 
@@ -1287,6 +1351,114 @@ git commit -m "chore: build verification, cleanup residual references"
 - [ ] F7. E2E test — `POST /media/check` returns valid/invalid grouping
 - [ ] F8. Regression — `GET /notes` list, `POST /notes/publish`, `POST /notes/archive` unaffected
 - [ ] F9. No `NoteMediaItemDto` references remain in source
+
+---
+
+### Task 11: MediaService Unit Tests
+
+**Files:**
+- Create: `src/media/media.service.spec.ts`
+
+**Dependency:** Task 4 (MediaModule). Can run in parallel with Tasks 6-10.
+
+**Steps:**
+
+- [ ] **11.1 Create test file with NestJS scaffold**
+
+```typescript
+import { Test, TestingModule } from '@nestjs/testing';
+import { MediaService } from './media.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { MediaStatus, $Enums } from '@prisma/client';
+
+describe('MediaService', () => {
+  let service: MediaService;
+  let prisma: PrismaService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [MediaService, PrismaService],
+    }).compile();
+    service = module.get<MediaService>(MediaService);
+    prisma = module.get<PrismaService>(PrismaService);
+  });
+
+  afterEach(async () => {
+    await prisma.noteMedia.deleteMany();
+    await prisma.media.deleteMany();
+  });
+});
+```
+
+- [ ] **11.2 Test: create() + checkOwnership()**
+
+```typescript
+it('create: defaults to PENDING', async () => {
+  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  expect(m.status).toBe(MediaStatus.PENDING);
+});
+
+it('checkOwnership: valid/invalid split', async () => {
+  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  const { valid, invalid } = await service.checkOwnership([m.id, 'fake'], 'u1');
+  expect(valid).toHaveLength(1);
+  expect(invalid).toEqual(['fake']);
+});
+
+it('checkOwnership: rejects wrong userId', async () => {
+  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  const { invalid } = await service.checkOwnership([m.id], 'u2');
+  expect(invalid).toEqual([m.id]);
+});
+```
+
+- [ ] **11.3 Test: attachToNote() + detachFromNote()**
+
+```typescript
+it('attachToNote: creates association and sets ATTACHED', async () => {
+  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  await service.attachToNote('note-1', [m.id], 'u1');
+  const updated = await prisma.media.findUnique({ where: { id: m.id } });
+  expect(updated!.status).toBe(MediaStatus.ATTACHED);
+});
+
+it('detachFromNote: removes association and orphans', async () => {
+  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u', status: MediaStatus.ATTACHED });
+  await prisma.noteMedia.create({ data: { noteId: 'note-1', mediaId: m.id } });
+  await service.detachFromNote('note-1');
+  expect((await prisma.media.findUnique({ where: { id: m.id } }))!.status).toBe(MediaStatus.ORPHAN);
+});
+```
+
+- [ ] **11.4 Test: findByNoteId() + isOrphan()**
+
+```typescript
+it('findByNoteId: returns media for note', async () => {
+  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  await prisma.noteMedia.create({ data: { noteId: 'n1', mediaId: m.id } });
+  expect(await service.findByNoteId('n1')).toHaveLength(1);
+});
+
+it('isOrphan: finds media without associations', async () => {
+  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  expect(await service.isOrphan([m.id])).toEqual([m.id]);
+});
+```
+
+- [ ] **11.5 Run tests** (requires PostgreSQL + Redis)
+
+```bash
+npx jest src/media/media.service.spec.ts
+```
+
+Expected: All 6 tests pass.
+
+- [ ] **11.6 Commit**
+
+```bash
+git add src/media/media.service.spec.ts
+git commit -m "test: add MediaService unit tests for all 6 methods"
+```
 
 ## Success Criteria
 
