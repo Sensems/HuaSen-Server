@@ -1387,13 +1387,13 @@ describe('MediaService', () => {
     service = module.get<MediaService>(MediaService);
     prisma = module.get<PrismaService>(PrismaService);
 
-    // Create test user and note for FK constraints
+    // Create test user and note (let Prisma auto-generate UUIDs via @default(uuid()))
     const user = await prisma.user.create({
-      data: { id: 'test-user-id', wxOpenid: 'test-openid', role: 'ADMIN' },
+      data: { wxOpenid: 'test-openid' },
     });
     testUserId = user.id;
     const note = await prisma.note.create({
-      data: { id: 'test-note-id', userId: testUserId, type: 'DRAFT', source: 'APP_MANUAL', title: 'Test Note' },
+      data: { userId: testUserId, title: 'Test Note' },
     });
     testNoteId = note.id;
   });
@@ -1457,7 +1457,7 @@ it('findByNoteId: returns media for note', async () => {
 });
 
 it('isOrphan: finds media without associations', async () => {
-  const m = await service.create({ userId: 'u1', type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
+  const m = await service.create({ userId: testUserId, type: $Enums.MediaType.IMAGE, qiniuKey: 'k', qiniuUrl: 'u' });
   expect(await service.isOrphan([m.id])).toEqual([m.id]);
 });
 ```
