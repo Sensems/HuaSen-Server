@@ -1,7 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsArray, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { NoteMediaItemDto } from './note-media-item.dto';
+import { IsArray, IsOptional, IsString, IsUUID } from 'class-validator';
 
 /**
  * 更新笔记请求体
@@ -53,14 +51,9 @@ export class UpdateNoteDto {
   @IsString({ each: true })
   tagIds?: string[];
 
-  @ApiProperty({
-    description: '笔记关联的多媒体列表',
-    required: false,
-    type: [NoteMediaItemDto],
-  })
+  @ApiProperty({ description: '已上传的媒体 ID 列表', required: false, type: [String], isArray: true, example: ['uuid-1', 'uuid-2'] })
   @IsOptional()
   @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => NoteMediaItemDto)
-  media?: NoteMediaItemDto[];
+  @IsUUID('4', { each: true })
+  mediaIds?: string[];
 }
