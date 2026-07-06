@@ -1,5 +1,13 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
+/** 当前用户最小信息 */
+export interface CurrentUserInfo {
+  id: string;
+  openid: string;
+  nickname?: string;
+  role: string;
+}
+
 /**
  * 获取当前登录用户信息
  * 从 JWT Guard 注入的 req.user 中提取

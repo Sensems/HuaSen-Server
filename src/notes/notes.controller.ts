@@ -1,68 +1,90 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { NotesService } from './notes.service';
 import { CreateNoteDto } from './dto/create-note.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
 import { QueryNoteDto } from './dto/query-note.dto';
 import { IdDto } from '../common/dto/id.dto';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-
-/** 当前用户最小信息 */
-interface CurrentUserInfo {
-  id: string;
-  openid: string;
-  nickname?: string;
-  role: string;
-}
+import { CurrentUser, CurrentUserInfo } from '../common/decorators/current-user.decorator';
 
 /**
  * 笔记控制器
  * 仅使用 GET 和 POST 方法，需要 JWT 认证
  */
+@ApiTags('笔记')
+@ApiBearerAuth('JWT-auth')
 @Controller('notes')
 export class NotesController {
   constructor(private readonly notesService: NotesService) {}
 
   @Get()
+  @ApiOperation({ summary: '获取笔记列表（分页 + 筛选）' })
+  @ApiResponse({ status: 200, description: '成功返回分页后的笔记列表' })
   async list(@Query() query: QueryNoteDto, @CurrentUser() user: CurrentUserInfo) {
     return this.notesService.findAll(query, user?.id);
   }
 
   @Get('detail')
+  @ApiOperation({ summary: '获取笔记详情' })
+  @ApiQuery({ name: 'id', description: '笔记 ID', example: 'clxyz1234567890abcdef' })
+  @ApiResponse({ status: 200, description: '成功返回笔记详情（含分类、标签、媒体）' })
   async detail(@Query() query: IdDto, @CurrentUser() user: CurrentUserInfo) {
     return this.notesService.findById(query.id, user?.id);
   }
 
   @Post('create')
+  @ApiOperation({ summary: '创建笔记' })
+  @ApiResponse({ status: 200, description: '成功创建笔记' })
   async create(@Body() dto: CreateNoteDto, @CurrentUser() user: CurrentUserInfo) {
     return this.notesService.create(dto, user?.id);
   }
 
   @Post('update')
+  @ApiOperation({ summary: '更新笔记' })
+  @ApiResponse({ status: 200, description: '成功更新笔记' })
   async update(@Body() dto: UpdateNoteDto) {
     return this.notesService.update(dto);
   }
 
   @Post('delete')
+  @ApiOperation({ summary: '软删除笔记' })
+  @ApiResponse({ status: 200, description: '成功软删除笔记' })
   async delete(@Body() body: IdDto) {
     return this.notesService.softDelete(body.id);
   }
 
   @Post('publish')
+  @ApiOperation({ summary: '发布笔记（草稿 → 已发布）' })
+  @ApiResponse({ status: 200, description: '成功发布笔记' })
   async publish(@Body() body: IdDto) {
     return this.notesService.publish(body.id);
   }
 
   @Post('archive')
+  @ApiOperation({ summary: '归档或取消归档笔记' })
+  @ApiResponse({ status: 200, description: '成功切换归档状态' })
   async archive(@Body() body: IdDto) {
     return this.notesService.archive(body.id);
   }
 
   @Get('media')
+  @ApiOperation({ summary: '获取笔记关联的多媒体列表' })
+  @ApiQuery({ name: 'note_id', description: '笔记 ID', example: 'clxyz1234567890abcdef' })
+  @ApiResponse({ status: 200, description: '成功返回该笔记下的多媒体资源列表' })
   async media(@Query('note_id') noteId: string) {
     return this.notesService.getMedia(noteId);
   }
 
   @Get('share')
+  @ApiOperation({ summary: '获取笔记分享信息' })
+  @ApiQuery({ name: 'id', description: '笔记 ID', example: 'clxyz1234567890abcdef' })
+  @ApiResponse({ status: 200, description: '成功返回分享所需的精简信息' })
   async share(@Query() query: IdDto) {
     const note = await this.notesService.findById(query.id);
     return {
