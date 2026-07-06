@@ -2,7 +2,7 @@ import { Controller, Post, Body } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MediaService } from './media.service';
 import { CheckMediaDto } from './dto/check-media.dto';
-import { CurrentUser, CurrentUserInfo } from '../common/decorators/current-user.decorator';
+import { CurrentUser, type CurrentUserInfo } from '../common/decorators/current-user.decorator';
 
 /**
  * 媒体控制器

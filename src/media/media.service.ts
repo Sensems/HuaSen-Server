@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/constants/error-codes';
-import { MediaStatus, Media, Prisma, $Enums } from '@prisma/client';
+import { MediaStatus, type Media, type Prisma, $Enums } from '@prisma/client';
 
 /** 创建 Media 所需参数 */
 interface CreateMediaParams {
