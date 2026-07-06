@@ -24,6 +24,11 @@ export enum ErrorCode {
   CATEGORY_DUPLICATE = 40001,
   CATEGORY_DEPTH_EXCEEDED = 40002,
 
+  // ===== 5xxxx 多媒体 =====
+  MEDIA_NOT_FOUND = 50001,
+  MEDIA_NOT_OWNED = 50002,
+  MEDIA_NOT_PENDING = 50003,
+
   // 存储错误 6xxxx
   UPLOAD_FAILED = 60001,
   FILE_TOO_LARGE = 60002,
@@ -47,6 +52,9 @@ export const ErrorMessage: Record<number, string> = {
   [ErrorCode.NOTE_INVALID_OPERATION]: '不允许的操作',
   [ErrorCode.CATEGORY_DUPLICATE]: '分类名称重复',
   [ErrorCode.CATEGORY_DEPTH_EXCEEDED]: '分类层级超过限制',
+  [ErrorCode.MEDIA_NOT_FOUND]: '媒体记录不存在',
+  [ErrorCode.MEDIA_NOT_OWNED]: '媒体不属于当前用户',
+  [ErrorCode.MEDIA_NOT_PENDING]: '媒体状态不是待关联',
   [ErrorCode.UPLOAD_FAILED]: '文件上传失败',
   [ErrorCode.FILE_TOO_LARGE]: '文件大小超过限制',
   [ErrorCode.SIGNATURE_EXPIRED]: '上传凭证已过期',
