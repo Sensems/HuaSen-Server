@@ -18,6 +18,16 @@ async function bootstrap() {
     { rawBody: true },
   );
 
+  // 注册 text/xml 内容类型解析器（微信 POST 消息使用此 Content-Type）
+  const fastifyInstance = app.getHttpAdapter().getInstance();
+  fastifyInstance.addContentTypeParser(
+    'text/xml',
+    { parseAs: 'string' },
+    (_req, body: string, done) => {
+      done(null, body);
+    },
+  );
+
   // 启用全局参数校验（class-validator 装饰器生效）
   app.useGlobalPipes(
     new ValidationPipe({

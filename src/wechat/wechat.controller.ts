@@ -39,7 +39,14 @@ export class WechatController {
   ): Promise<void> {
     // Fastify 的 text/xml content type parser 已将 body 解析为字符串
     const body = req.body as string;
-    await this.wechatService.handleMessage(body);
+    console.log(`[WechatController] Received POST body length: ${body?.length ?? 'NULL'} bytes`);
+
+    try {
+      await this.wechatService.handleMessage(body);
+      console.log('[WechatController] Message processed successfully');
+    } catch (err) {
+      console.error('[WechatController] handleMessage threw:', err);
+    }
 
     res.header('Content-Type', 'text/plain').send('success');
   }

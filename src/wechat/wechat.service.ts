@@ -37,6 +37,7 @@ export class WechatService {
    * 解密 → 去重检查 → 入 BullMQ 队列 → 返回 success
    */
   async handleMessage(body: string): Promise<string> {
+    console.log('[WechatService] Step 1: Parsing encrypted XML...');
     const encrypted = await parseWechatXml<WechatEncryptedMessage>(body);
 
     const encodingAESKey = this.configService.get<string>(
@@ -44,9 +45,13 @@ export class WechatService {
       '',
     );
     const appId = this.configService.get<string>('wechat.appId', '');
+
+    console.log('[WechatService] Step 2: Decrypting message...');
     const plainXml = decryptMessage(encrypted.Encrypt, encodingAESKey, appId);
 
+    console.log('[WechatService] Step 3: Parsing plain XML...');
     const message = await parseWechatXml<WechatBaseMessage>(plainXml);
+    console.log(`[WechatService] Received msgType=${message.MsgType}`);
 
     // 消息去重检查
     const msgId = (message as any).MsgId as string;
@@ -57,7 +62,10 @@ export class WechatService {
           meta: { path: ['wechat_msg_id'], equals: msgId },
         },
       });
-      if (exists) return 'success'; // 重复消息，跳过
+      if (exists) {
+        console.log(`[WechatService] Duplicate msgId=${msgId}, skipping`);
+        return 'success';
+      } // 重复消息，跳过
     }
 
     // 构建 Job 数据并入队
@@ -67,6 +75,7 @@ export class WechatService {
       removeOnComplete: true,
       removeOnFail: 100,
     });
+    console.log(`[WechatService] Job enqueued: msgId=${msgId}, type=${message.MsgType}`);
 
     return 'success';
   }
