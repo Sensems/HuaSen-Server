@@ -92,10 +92,12 @@ export class WechatMessageProcessor extends WorkerHost {
   }
 
   /**
-   * 处理文本消息：直接创建笔记
+   * 处理文本消息：提取第一行作为标题，剩余内容作为正文
    */
   private async processText(data: WechatMessageJobData, userId: string) {
-    const title = this.generateTitle(data.content || '');
+    const rawText = data.content || '';
+    const title = this.generateTitle(rawText);
+    const body = this.extractBody(rawText);
 
     const note = await this.prisma.note.create({
       data: {
@@ -103,7 +105,7 @@ export class WechatMessageProcessor extends WorkerHost {
         type: $Enums.NoteType.DRAFT,
         source: $Enums.NoteSource.WECHAT,
         title,
-        content: data.content,
+        content: body,
         rawContent: data.rawContent,
         meta: {
           wechat_msg_id: data.msgId,
@@ -274,12 +276,24 @@ export class WechatMessageProcessor extends WorkerHost {
   }
 
   /**
-   * 从内容生成标题
+   * 从内容生成标题：取第一行（第一个换行符之前的内容），截断至 100 字符
    */
   private generateTitle(content: string): string {
     if (!content) return '无标题';
-    const clean = content.replace(/\n/g, ' ').trim();
-    return clean.length > 100 ? clean.slice(0, 100) : clean;
+    const firstLine = content.split('\n')[0].trim();
+    if (!firstLine) return '无标题';
+    return firstLine.length > 100 ? firstLine.slice(0, 100) : firstLine;
+  }
+
+  /**
+   * 从内容中提取正文（去除第一行标题部分）
+   * @param content - 原始文本内容
+   * @returns 去除标题行后的正文，若无剩余内容则返回空字符串
+   */
+  private extractBody(content: string): string {
+    const newlineIndex = content.indexOf('\n');
+    if (newlineIndex === -1) return '';
+    return content.slice(newlineIndex + 1).trimStart();
   }
 
   /**
