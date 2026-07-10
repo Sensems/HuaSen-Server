@@ -28,10 +28,13 @@ export const qiniuConfig = registerAs('qiniu', () => ({
 }));
 
 /**
- * 邮件服务配置（Resend）
+ * 邮件服务配置（SMTP）
  */
 export const emailConfig = registerAs('email', () => ({
-  resendApiKey: process.env.RESEND_API_KEY || '',
+  smtpHost: process.env.SMTP_HOST || 'smtp.qq.com',
+  smtpPort: parseInt(process.env.SMTP_PORT || '465', 10),
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
   from: process.env.EMAIL_FROM || '森华笔记 <noreply@example.com>',
 }));
 

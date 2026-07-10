@@ -1,22 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from './mail.service';
-import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
 
-jest.mock('resend');
+jest.mock('nodemailer');
 
-const mockResendSend = jest.fn();
+const mockSendMail = jest.fn();
 
-(Resend as jest.MockedClass<typeof Resend>).mockImplementation(() => ({
-  emails: { send: mockResendSend },
-} as any));
+(nodemailer.createTransport as jest.Mock).mockReturnValue({
+  sendMail: mockSendMail,
+});
 
 describe('MailService', () => {
   let service: MailService;
-  let configService: ConfigService;
 
   beforeEach(async () => {
-    mockResendSend.mockReset();
+    mockSendMail.mockReset();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -25,9 +24,12 @@ describe('MailService', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string) => {
-              const map: Record<string, string> = {
-                'email.resendApiKey': 're_test_key',
-                'email.from': 'Test <test@example.com>',
+              const map: Record<string, unknown> = {
+                'email.smtpHost': 'smtp.qq.com',
+                'email.smtpPort': 465,
+                'email.smtpUser': 'test@qq.com',
+                'email.smtpPass': 'auth_code',
+                'email.from': 'Test <test@qq.com>',
               };
               return map[key];
             }),
@@ -37,30 +39,26 @@ describe('MailService', () => {
     }).compile();
 
     service = module.get<MailService>(MailService);
-    configService = module.get<ConfigService>(ConfigService);
   });
 
   it('should send verification code email with correct parameters', async () => {
-    mockResendSend.mockResolvedValue({ data: { id: 'msg_123' }, error: null });
+    mockSendMail.mockResolvedValue({ messageId: 'test-id' });
 
     await service.sendVerificationCode('user@example.com', '482931');
 
-    expect(mockResendSend).toHaveBeenCalledWith({
-      from: 'Test <test@example.com>',
-      to: 'user@example.com',
-      subject: '森华笔记 - 邮箱验证码',
-      html: '<p>您的验证码是：<strong>482931</strong>，10分钟内有效。</p>',
-    });
+    const callArgs = mockSendMail.mock.calls[0][0];
+    expect(callArgs.from).toBe('Test <test@qq.com>');
+    expect(callArgs.to).toBe('user@example.com');
+    expect(callArgs.subject).toBe('森华笔记 - 邮箱验证码');
+    expect(callArgs.html).toContain('482931');
+    expect(callArgs.html).toContain('10 分钟内有效');
   });
 
-  it('should throw error when Resend returns error', async () => {
-    mockResendSend.mockResolvedValue({
-      data: null,
-      error: { message: 'Invalid API key' },
-    });
+  it('should throw error when SMTP send fails', async () => {
+    mockSendMail.mockRejectedValue(new Error('SMTP connection failed'));
 
     await expect(
       service.sendVerificationCode('user@example.com', '482931'),
-    ).rejects.toThrow('Resend send failed: Invalid API key');
+    ).rejects.toThrow('SMTP connection failed');
   });
 });
