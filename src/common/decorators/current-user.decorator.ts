@@ -3,9 +3,10 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 /** 当前用户最小信息 */
 export interface CurrentUserInfo {
   id: string;
-  openid: string;
+  openid?: string;
   nickname?: string;
   role: string;
+  email?: string;
 }
 
 /**

@@ -8,8 +8,9 @@ import { PrismaService } from '../../prisma/prisma.service';
  * JWT 负载内容
  */
 export interface JwtPayload {
-  sub: string;   // 用户 ID
-  openid: string; // 微信 openId
+  sub: string;      // 用户 ID
+  openid?: string;  // 微信 openId（邮箱用户为 undefined）
+  email?: string;   // 邮箱（微信用户为 undefined）
 }
 
 /**
@@ -45,6 +46,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       openid: user.wxOpenid,
       nickname: user.nickname,
       role: user.role,
+      email: user.email,
     };
   }
 }
