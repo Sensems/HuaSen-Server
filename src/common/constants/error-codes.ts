@@ -15,6 +15,14 @@ export enum ErrorCode {
   WECHAT_AUTH_FAILED = 20002,
   TOKEN_INVALID = 20003,
 
+  // 邮箱认证错误
+  EMAIL_ALREADY_REGISTERED   = 20010,
+  EMAIL_NOT_FOUND            = 20011,
+  VERIFICATION_CODE_INVALID  = 20012,
+  VERIFICATION_CODE_EXPIRED  = 20013,
+  PASSWORD_INCORRECT         = 20014,
+  EMAIL_SEND_FAILED          = 20015,
+
   // 笔记错误 3xxxx
   NOTE_NOT_FOUND = 30001,
   NOTE_DELETED = 30002,
@@ -47,6 +55,12 @@ export const ErrorMessage: Record<number, string> = {
   [ErrorCode.TOKEN_EXPIRED]: 'Token 已过期',
   [ErrorCode.WECHAT_AUTH_FAILED]: '微信授权失败',
   [ErrorCode.TOKEN_INVALID]: 'Token 无效',
+  [ErrorCode.EMAIL_ALREADY_REGISTERED]: '该邮箱已注册',
+  [ErrorCode.EMAIL_NOT_FOUND]: '该邮箱未注册',
+  [ErrorCode.VERIFICATION_CODE_INVALID]: '验证码错误',
+  [ErrorCode.VERIFICATION_CODE_EXPIRED]: '验证码已过期，请重新获取',
+  [ErrorCode.PASSWORD_INCORRECT]: '密码错误',
+  [ErrorCode.EMAIL_SEND_FAILED]: '邮件发送失败，请稍后重试',
   [ErrorCode.NOTE_NOT_FOUND]: '笔记不存在',
   [ErrorCode.NOTE_DELETED]: '笔记已删除',
   [ErrorCode.NOTE_INVALID_OPERATION]: '不允许的操作',
