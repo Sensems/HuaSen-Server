@@ -1,4 +1,5 @@
 import { Controller, Post, Body, Headers } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, CurrentUserInfo } from '../common/decorators/current-user.decorator';
@@ -46,6 +47,7 @@ export class AuthController {
    * 发送邮箱验证码
    * POST /auth/email/send-code
    */
+  @Throttle({ default: { limit: 1, ttl: 60000 } })
   @Public()
   @Post('email/send-code')
   @ApiOperation({ summary: '发送邮箱验证码' })
@@ -74,6 +76,7 @@ export class AuthController {
    * 邮箱登录
    * POST /auth/email/login
    */
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Public()
   @Post('email/login')
   @ApiOperation({ summary: '邮箱登录' })
