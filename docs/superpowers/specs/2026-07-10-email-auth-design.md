@@ -212,6 +212,8 @@ Throttle: 同一 IP 60秒内最多 1 次
 
 **注意**：同一邮箱重复发码时，不覆盖旧记录。允许短时间内多条未过期验证码共存，任一可用。
 
+如果邮件发送失败（Resend 返回 error），已写入 DB 的验证码记录不回滚。验证码 10 分钟自动过期，影响可忽略。如需严格一致性，可在 catch 块中删除刚写入的记录。
+
 ### 6.2 邮箱注册
 
 ```
@@ -300,10 +302,12 @@ Auth: @Public()
 ```json
 { "code": 20011, "message": "该邮箱未注册", "data": null }
 { "code": 20014, "message": "密码错误", "data": null }
+{ "code": 10003, "message": "请求过于频繁", "data": null }
 ```
 
 **处理逻辑**：
-1. 查 User by email（`User.findUnique({ where: { email } })`）
+1. IP 限流检查（`@Throttle({ default: { limit: 5, ttl: 60000 } })` — 每分钟最多5次，防暴力破解）
+2. 查 User by email（`User.findUnique({ where: { email } })`）
 2. 不存在 → 抛 `EMAIL_NOT_FOUND`
 3. bcrypt.compare(password, user.passwordHash)
 4. 不匹配 → 抛 `PASSWORD_INCORRECT`
@@ -335,8 +339,8 @@ src/auth/dto/                          ← 新建 DTO
 | `src/config/configuration.ts` | +emailConfig, +throttleConfig |
 | `src/auth/auth.module.ts` | imports 加 ThrottlerModule |
 | `src/auth/auth.controller.ts` | +3 路由（send-code, register, login） |
-| `src/auth/auth.service.ts` | +sendEmailCode, emailRegister, emailLogin |
-| `src/auth/strategies/jwt.strategy.ts` | JwtPayload +email?, validate() 加 email |
+| `src/auth/auth.service.ts` | +sendEmailCode, emailRegister, emailLogin；**改 generateTokens 签名** |
+| `src/auth/strategies/jwt.strategy.ts` | JwtPayload +email?、openid 改为可选，validate() 加 email |
 | `src/common/decorators/current-user.decorator.ts` | CurrentUserInfo +email? |
 | `src/app.module.ts` | imports 加 MailModule, ThrottlerModule（APP_GUARD） |
 | `.env` / `.env.example` | +3 环境变量 |
@@ -473,18 +477,35 @@ async emailLogin(dto: EmailLoginDto): Promise<TokenResponseDto> {
 }
 ```
 
+**generateTokens 签名变更**：为支持邮箱用户，`generateTokens` 需改为：
+
+```typescript
+private generateTokens(userId: string, openid?: string, email?: string) {
+  const payload: JwtPayload = {
+    sub: userId,
+    openid: openid || undefined,  // 邮箱用户传 '' → payload 中为 undefined
+    email: email || undefined,
+  };
+  // ... sign logic 不变
+}
+```
+
+`refreshToken` 方法同步适配：`generateTokens(payload.sub, payload.openid || undefined, payload.email)`。
+
 ### 8.3 bindingCode 生成规则
 
 ```typescript
-private generateBindingCode(): string {
+private async generateBindingCode(): Promise<string> {
   const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 排除 I/O/0/1
-  let code: string;
-  do {
-    code = Array.from({ length: 6 }, () =>
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = Array.from({ length: 6 }, () =>
       CHARS[Math.floor(Math.random() * CHARS.length)]
     ).join('');
-  } while (/* 检查 code 唯一性，冲突重试 */);
-  return code;
+    const existing = await this.prisma.user.findUnique({ where: { bindingCode: code } });
+    if (!existing) return code;
+  }
+  // 碰撞概率极低（30^6 ≈ 7千万），重试5次后仍冲突则抛异常
+  throw new Error('Failed to generate unique binding code');
 }
 ```
 
@@ -558,7 +579,7 @@ async sendCode(@Body() body: EmailSendCodeDto) { ... }
 
 ```bash
 # 1. 安装依赖
-npm i resend bcrypt @nestjs/throttler
+npm i resend bcrypt @types/bcrypt @nestjs/throttler
 
 # 2. 修改 Prisma schema（手动编辑，见第3节）
 # 3. 生成迁移
