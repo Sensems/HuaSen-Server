@@ -16,6 +16,7 @@ import { WechatModule } from './wechat/wechat.module';
 import { QueueModule } from './queue/queue.module';
 import { StorageModule } from './storage/storage.module';
 import { MediaModule } from './media/media.module';
+import { MailModule } from './mail/mail.module';
 
 /**
  * 应用根模块
@@ -29,6 +30,7 @@ import { MediaModule } from './media/media.module';
       load: [appConfig, wechatConfig, qiniuConfig, emailConfig, throttleConfig],
     }),
     PrismaModule,
+    MailModule,
     AuthModule,
     UserModule,
     NotesModule,
