@@ -63,10 +63,12 @@ model User {
   bindingCode     String?    @unique @map("binding_code") @db.VarChar(8)
 
   // --- 关联 ---
-  notes              Note[]
-  categories         Category[]
-  media              Media[]
-  verificationCodes  EmailVerificationCode[]
+  notes      Note[]
+  categories Category[]
+  media      Media[]
+
+  // 注：EmailVerificationCode 不关联 User（注册时用户尚不存在），
+  // 因此 User 模型不声明 verificationCodes 反向关系
 
   @@map("users")
 }
@@ -342,13 +344,14 @@ src/auth/dto/                          ← 新建 DTO
 ### 7.3 新增依赖
 
 ```
-npm i resend bcrypt @nestjs/throttler
+npm i resend bcrypt @types/bcrypt @nestjs/throttler
 ```
 
 | 包 | 版本 | 用途 |
 |---|---|---|
 | `resend` | ^4.x | Resend 邮件发送 SDK |
 | `bcrypt` | ^5.x | 密码哈希与校验 |
+| `@types/bcrypt` | ^5.x | bcrypt TypeScript 类型 |
 | `@nestjs/throttler` | ^6.x | IP 限流 |
 
 ---
