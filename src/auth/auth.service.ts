@@ -6,6 +6,10 @@ import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/constants/error-codes';
 import { JwtPayload } from './strategies/jwt.strategy';
 import axios from 'axios';
+import { MailService } from '../mail/mail.service';
+import { EmailRegisterDto } from './dto/email-register.dto';
+import { EmailLoginDto } from './dto/email-login.dto';
+import bcrypt from 'bcrypt';
 
 /** 微信 OAuth access_token 响应 */
 interface WechatOAuthToken {
@@ -38,6 +42,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -91,7 +96,132 @@ export class AuthService {
     });
 
     // 4. 签发 JWT
-    return this.generateTokens(user.id, user.wxOpenid || '');
+    return this.generateTokens(user.id, user.wxOpenid || undefined);
+  }
+
+  /**
+   * 发送邮箱验证码
+   * 生成6位随机数字，写入DB，通过 Resend 发送邮件
+   */
+  async sendEmailCode(email: string): Promise<void> {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await this.prisma.emailVerificationCode.create({
+      data: {
+        email,
+        code,
+        purpose: 'register',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      },
+    });
+
+    try {
+      await this.mailService.sendVerificationCode(email, code);
+    } catch (error) {
+      throw new BusinessException(
+        ErrorCode.EMAIL_SEND_FAILED,
+        '邮件发送失败，请稍后重试',
+      );
+    }
+  }
+
+  /**
+   * 生成唯一绑定码（6位大写字母数字）
+   */
+  private async generateBindingCode(): Promise<string> {
+    const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = Array.from({ length: 6 }, () =>
+        CHARS[Math.floor(Math.random() * CHARS.length)],
+      ).join('');
+      const existing = await this.prisma.user.findUnique({
+        where: { bindingCode: code },
+      });
+      if (!existing) return code;
+    }
+    throw new Error('Failed to generate unique binding code');
+  }
+
+  /**
+   * 邮箱注册
+   * 校验邮箱唯一性 → 校验验证码 → 标记已用 → 哈希密码 → 创建用户 → 返回JWT
+   */
+  async emailRegister(dto: EmailRegisterDto) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    if (existing) {
+      throw new BusinessException(ErrorCode.EMAIL_ALREADY_REGISTERED);
+    }
+
+    const verification = await this.prisma.emailVerificationCode.findFirst({
+      where: {
+        email: dto.email,
+        code: dto.code,
+        purpose: 'register',
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!verification) {
+      const anyForEmail = await this.prisma.emailVerificationCode.findFirst({
+        where: {
+          email: dto.email,
+          code: dto.code,
+          purpose: 'register',
+          usedAt: null,
+        },
+      });
+      throw new BusinessException(
+        anyForEmail
+          ? ErrorCode.VERIFICATION_CODE_EXPIRED
+          : ErrorCode.VERIFICATION_CODE_INVALID,
+      );
+    }
+
+    await this.prisma.emailVerificationCode.update({
+      where: { id: verification.id },
+      data: { usedAt: new Date() },
+    });
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const bindingCode = await this.generateBindingCode();
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        passwordHash,
+        bindingCode,
+        role: 'USER',
+      },
+      select: { id: true, email: true },
+    });
+
+    return this.generateTokens(user.id, undefined, user.email || undefined);
+  }
+
+  /**
+   * 邮箱登录
+   * 查用户 → 校验密码 → 返回JWT
+   */
+  async emailLogin(dto: EmailLoginDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      select: { id: true, passwordHash: true, email: true },
+    });
+
+    if (!user) {
+      throw new BusinessException(ErrorCode.EMAIL_NOT_FOUND);
+    }
+
+    const valid = await bcrypt.compare(dto.password, user.passwordHash!);
+    if (!valid) {
+      throw new BusinessException(ErrorCode.PASSWORD_INCORRECT);
+    }
+
+    return this.generateTokens(user.id, undefined, user.email || undefined);
   }
 
   /**
@@ -108,7 +238,7 @@ export class AuthService {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET', 'default-refresh-secret'),
       });
 
-      return this.generateTokens(payload.sub, payload.openid);
+      return this.generateTokens(payload.sub, payload.openid || undefined, payload.email);
     } catch {
       throw new BusinessException(ErrorCode.TOKEN_EXPIRED, 'Refresh Token 已过期');
     }
@@ -143,8 +273,12 @@ export class AuthService {
   /**
    * 签发 JWT（access_token + refresh_token）
    */
-  private generateTokens(userId: string, openid: string) {
-    const payload: JwtPayload = { sub: userId, openid };
+  private generateTokens(userId: string, openid?: string, email?: string) {
+    const payload: JwtPayload = {
+      sub: userId,
+      openid: openid || undefined,
+      email: email || undefined,
+    };
 
     const accessToken = this.jwtService.sign(payload, {
       expiresIn: '2h',
