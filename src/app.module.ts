@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
-import { appConfig, wechatConfig, qiniuConfig } from './config/configuration';
+import { appConfig, wechatConfig, qiniuConfig, emailConfig, throttleConfig } from './config/configuration';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpLoggerInterceptor } from './common/interceptors/http-logger.interceptor';
@@ -26,7 +26,7 @@ import { MediaModule } from './media/media.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      load: [appConfig, wechatConfig, qiniuConfig],
+      load: [appConfig, wechatConfig, qiniuConfig, emailConfig, throttleConfig],
     }),
     PrismaModule,
     AuthModule,

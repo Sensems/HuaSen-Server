@@ -26,3 +26,19 @@ export const qiniuConfig = registerAs('qiniu', () => ({
   bucket: process.env.QINIU_BUCKET,
   domain: process.env.QINIU_DOMAIN,
 }));
+
+/**
+ * 邮件服务配置（Resend）
+ */
+export const emailConfig = registerAs('email', () => ({
+  resendApiKey: process.env.RESEND_API_KEY || '',
+  from: process.env.EMAIL_FROM || '森华笔记 <noreply@example.com>',
+}));
+
+/**
+ * 限流配置
+ */
+export const throttleConfig = registerAs('throttle', () => ({
+  ttl: parseInt(process.env.THROTTLE_TTL || '60000', 10),
+  limit: parseInt(process.env.THROTTLE_LIMIT || '1', 10),
+}));
