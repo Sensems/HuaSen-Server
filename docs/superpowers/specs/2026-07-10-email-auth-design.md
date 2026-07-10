@@ -77,6 +77,7 @@ model User {
 - `email`：可空，有值时唯一。微信用户无 email，邮箱用户无 wxOpenid。未来绑定后两者可共存。
 - `passwordHash`：bcrypt 哈希结果（固定 60 字符），仅邮箱用户有值。
 - `bindingCode`：6 位大写字母数字组合（如 `XA4B3R`），注册时自动生成。唯一约束保证不重复。用于未来微信绑定。
+- `role`：现有 `UserRole` 枚举已包含 `ADMIN` 和 `USER`。Prisma schema 默认值为 `@default(ADMIN)`，微信注册沿用此默认。邮箱注册时显式传 `role: 'USER'` 覆盖默认值。
 
 ### 3.2 EmailVerificationCode 表（新建）
 
@@ -330,7 +331,7 @@ src/auth/dto/                          ← 新建 DTO
 | `prisma/schema.prisma` | User +3字段，+EmailVerificationCode 表 |
 | `src/common/constants/error-codes.ts` | +6 错误码 + ErrorMessage |
 | `src/config/configuration.ts` | +emailConfig, +throttleConfig |
-| `src/auth/auth.module.ts` | imports 加 MailModule, ThrottlerModule |
+| `src/auth/auth.module.ts` | imports 加 ThrottlerModule |
 | `src/auth/auth.controller.ts` | +3 路由（send-code, register, login） |
 | `src/auth/auth.service.ts` | +sendEmailCode, emailRegister, emailLogin |
 | `src/auth/strategies/jwt.strategy.ts` | JwtPayload +email?, validate() 加 email |
