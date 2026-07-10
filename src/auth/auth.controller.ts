@@ -13,6 +13,9 @@ import { WechatCallbackDto } from './dto/wechat-callback.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { TokenResponseDto } from './dto/token-response.dto';
 import { LogoutResponseDto } from './dto/logout-response.dto';
+import { EmailSendCodeDto } from './dto/email-send-code.dto';
+import { EmailRegisterDto } from './dto/email-register.dto';
+import { EmailLoginDto } from './dto/email-login.dto';
 
 /**
  * 认证控制器
@@ -37,6 +40,48 @@ export class AuthController {
   @ApiResponse({ status: 401, description: '认证失败' })
   async wechatLogin(@Body() body: WechatCallbackDto) {
     return this.authService.wechatLogin(body.code);
+  }
+
+  /**
+   * 发送邮箱验证码
+   * POST /auth/email/send-code
+   */
+  @Public()
+  @Post('email/send-code')
+  @ApiOperation({ summary: '发送邮箱验证码' })
+  @ApiBody({ type: EmailSendCodeDto })
+  @ApiResponse({ status: 200, description: '发送成功' })
+  @ApiResponse({ status: 400, description: '参数校验失败' })
+  async sendEmailCode(@Body() body: EmailSendCodeDto) {
+    return this.authService.sendEmailCode(body.email);
+  }
+
+  /**
+   * 邮箱注册
+   * POST /auth/email/register
+   */
+  @Public()
+  @Post('email/register')
+  @ApiOperation({ summary: '邮箱注册' })
+  @ApiBody({ type: EmailRegisterDto })
+  @ApiResponse({ status: 200, type: TokenResponseDto })
+  @ApiResponse({ status: 400, description: '参数校验失败' })
+  async emailRegister(@Body() body: EmailRegisterDto) {
+    return this.authService.emailRegister(body);
+  }
+
+  /**
+   * 邮箱登录
+   * POST /auth/email/login
+   */
+  @Public()
+  @Post('email/login')
+  @ApiOperation({ summary: '邮箱登录' })
+  @ApiBody({ type: EmailLoginDto })
+  @ApiResponse({ status: 200, type: TokenResponseDto })
+  @ApiResponse({ status: 400, description: '参数校验失败' })
+  async emailLogin(@Body() body: EmailLoginDto) {
+    return this.authService.emailLogin(body);
   }
 
   /**
