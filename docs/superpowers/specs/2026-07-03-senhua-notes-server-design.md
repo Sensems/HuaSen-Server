@@ -1,8 +1,8 @@
-# 森华笔记服务 - 技术设计文档
+# 花森笔记服务 - 技术设计文档
 
 ## 概述
 
-森华笔记是一个个人笔记系统。核心流程：用户通过微信公众号发送消息作为临时笔记，后续在 App 端进行分类、编辑和管理。初期为单用户，后续扩展为多用户。
+花森笔记是一个个人笔记系统。核心流程：用户通过微信公众号发送消息作为临时笔记，后续在 App 端进行分类、编辑和管理。初期为单用户，后续扩展为多用户。
 
 ## 编码规范
 
@@ -11,18 +11,18 @@
 
 ## 技术栈
 
-| 层面 | 选型 |
-|------|------|
-| 运行时 | Node.js |
-| 框架 | NestJS（Fastify 底层适配器） |
-| 语言 | TypeScript |
-| 数据库 | PostgreSQL |
-| ORM | Prisma |
-| 缓存/队列 | Redis + BullMQ |
-| 对象存储 | 七牛云 Kodo |
-| 认证 | 微信 OAuth + JWT |
-| API 风格 | RESTful（仅 GET / POST） |
-| 实时通信 | 暂无（Phase 1-3 不做，WebSocket 预留到后续） |
+| 层面      | 选型                                         |
+| --------- | -------------------------------------------- |
+| 运行时    | Node.js                                      |
+| 框架      | NestJS（Fastify 底层适配器）                 |
+| 语言      | TypeScript                                   |
+| 数据库    | PostgreSQL                                   |
+| ORM       | Prisma                                       |
+| 缓存/队列 | Redis + BullMQ                               |
+| 对象存储  | 七牛云 Kodo                                  |
+| 认证      | 微信 OAuth + JWT                             |
+| API 风格  | RESTful（仅 GET / POST）                     |
+| 实时通信  | 暂无（Phase 1-3 不做，WebSocket 预留到后续） |
 
 ## 整体架构
 
@@ -69,17 +69,17 @@
 
 ### 模块职责
 
-| 模块 | 职责 | 依赖 |
-|------|------|------|
-| `AppModule` | 根模块，注册全局中间件（CORS、Helmet、请求日志） | 所有模块 |
-| `AuthModule` | 微信 OAuth、JWT 签发/验证/刷新、Guard | User |
-| `WechatModule` | 公众号消息回调、XML 解析/AES 解密、消息类型路由、BullMQ 任务入队 | Storage, Notes |
-| `NotesModule` | 笔记 CRUD、临时→正式转换、分类、标签 | Storage |
-| `StorageModule` | 七牛云上传 Token 生成、上传回调验证、文件删除 | — |
-| `CommonModule` | 全局异常过滤器、响应拦截器、日志、常量、DTO | — |
-| `QueueModule` | BullMQ 注册，Worker 处理器 | — |
-| `CategoriesModule` | 分类 CRUD、树形管理、排序 | — |
-| `TagsModule` | 标签 CRUD、多对多关联 | — |
+| 模块               | 职责                                                             | 依赖           |
+| ------------------ | ---------------------------------------------------------------- | -------------- |
+| `AppModule`        | 根模块，注册全局中间件（CORS、Helmet、请求日志）                 | 所有模块       |
+| `AuthModule`       | 微信 OAuth、JWT 签发/验证/刷新、Guard                            | User           |
+| `WechatModule`     | 公众号消息回调、XML 解析/AES 解密、消息类型路由、BullMQ 任务入队 | Storage, Notes |
+| `NotesModule`      | 笔记 CRUD、临时→正式转换、分类、标签                             | Storage        |
+| `StorageModule`    | 七牛云上传 Token 生成、上传回调验证、文件删除                    | —              |
+| `CommonModule`     | 全局异常过滤器、响应拦截器、日志、常量、DTO                      | —              |
+| `QueueModule`      | BullMQ 注册，Worker 处理器                                       | —              |
+| `CategoriesModule` | 分类 CRUD、树形管理、排序                                        | —              |
+| `TagsModule`       | 标签 CRUD、多对多关联                                            | —              |
 
 ### 外部依赖
 
@@ -229,70 +229,70 @@ tag_id        UUID        FK → Tag
 
 ### 微信回调
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/wechat/callback` | 微信服务器 Token 验证 |
+| 方法   | 路径               | 说明                                               |
+| ------ | ------------------ | -------------------------------------------------- |
+| `GET`  | `/wechat/callback` | 微信服务器 Token 验证                              |
 | `POST` | `/wechat/callback` | 接收消息事件，解密后入 BullMQ 队列，返回 `success` |
 
 ### 认证
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/auth/wechat/qrcode` | 获取微信扫码登录二维码链接 |
-| `POST` | `/auth/wechat/callback` | 微信 OAuth 回调，返回 JWT |
-| `POST` | `/auth/refresh` | 刷新 access_token（需 refresh_token） |
-| `POST` | `/auth/logout` | 登出，token 加入 Redis 黑名单 |
+| 方法   | 路径                    | 说明                                  |
+| ------ | ----------------------- | ------------------------------------- |
+| `GET`  | `/auth/wechat/qrcode`   | 获取微信扫码登录二维码链接            |
+| `POST` | `/auth/wechat/callback` | 微信 OAuth 回调，返回 JWT             |
+| `POST` | `/auth/refresh`         | 刷新 access_token（需 refresh_token） |
+| `POST` | `/auth/logout`          | 登出，token 加入 Redis 黑名单         |
 
 ### 笔记
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/notes` | 列表，`?type=&category=&tag=&page=&size=` |
-| `GET` | `/notes/detail` | 详情，`?id=` |
-| `POST` | `/notes/create` | 手动创建笔记 |
-| `POST` | `/notes/update` | 编辑内容/标题/分类/标签，body 含 `id` |
-| `POST` | `/notes/delete` | 软删除，body 含 `id` |
-| `POST` | `/notes/publish` | draft → published，body 含 `id` |
-| `POST` | `/notes/archive` | 归档，body 含 `id` |
-| `GET` | `/notes/media` | 笔记关联的多媒体列表，`?note_id=` |
+| 方法   | 路径             | 说明                                      |
+| ------ | ---------------- | ----------------------------------------- |
+| `GET`  | `/notes`         | 列表，`?type=&category=&tag=&page=&size=` |
+| `GET`  | `/notes/detail`  | 详情，`?id=`                              |
+| `POST` | `/notes/create`  | 手动创建笔记                              |
+| `POST` | `/notes/update`  | 编辑内容/标题/分类/标签，body 含 `id`     |
+| `POST` | `/notes/delete`  | 软删除，body 含 `id`                      |
+| `POST` | `/notes/publish` | draft → published，body 含 `id`           |
+| `POST` | `/notes/archive` | 归档，body 含 `id`                        |
+| `GET`  | `/notes/media`   | 笔记关联的多媒体列表，`?note_id=`         |
 
 ### 分类
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/categories` | 列表（树形返回） |
-| `POST` | `/categories/create` | 创建 |
-| `POST` | `/categories/update` | 编辑，body 含 `id` |
-| `POST` | `/categories/delete` | 删除，关联笔记归到未分类 |
-| `POST` | `/categories/reorder` | 拖拽排序 |
+| 方法   | 路径                  | 说明                     |
+| ------ | --------------------- | ------------------------ |
+| `GET`  | `/categories`         | 列表（树形返回）         |
+| `POST` | `/categories/create`  | 创建                     |
+| `POST` | `/categories/update`  | 编辑，body 含 `id`       |
+| `POST` | `/categories/delete`  | 删除，关联笔记归到未分类 |
+| `POST` | `/categories/reorder` | 拖拽排序                 |
 
 ### 标签
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/tags` | 列表 |
-| `POST` | `/tags/create` | 创建 |
+| 方法   | 路径           | 说明                     |
+| ------ | -------------- | ------------------------ |
+| `GET`  | `/tags`        | 列表                     |
+| `POST` | `/tags/create` | 创建                     |
 | `POST` | `/tags/delete` | 删除（解绑所有关联笔记） |
 
 ### 存储（七牛云）
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/storage/upload-token` | 获取七牛云上传 Token（App 直传用） |
-| `POST` | `/storage/callback` | 七牛云上传完成回调 |
-| `POST` | `/storage/delete` | 删除文件，body 含 `key` |
+| 方法   | 路径                    | 说明                               |
+| ------ | ----------------------- | ---------------------------------- |
+| `GET`  | `/storage/upload-token` | 获取七牛云上传 Token（App 直传用） |
+| `POST` | `/storage/callback`     | 七牛云上传完成回调                 |
+| `POST` | `/storage/delete`       | 删除文件，body 含 `key`            |
 
 ## 错误码设计
 
 ### 错误码分段
 
-| 范围 | 模块 |
-|------|------|
+| 范围    | 模块                                                               |
+| ------- | ------------------------------------------------------------------ |
 | `1xxxx` | 通用（参数校验 10001、未授权 10002、限流 10003、资源不存在 10004） |
-| `2xxxx` | 认证（token 过期 20001、微信授权失败 20002、token 无效 20003） |
-| `3xxxx` | 笔记（不存在 30001、已删除 30002、类型不允许操作 30003） |
-| `4xxxx` | 分类/标签（重复 40001、层级超限 40002） |
-| `6xxxx` | 存储（上传失败 60001、文件超限 60002、签名过期 60003） |
+| `2xxxx` | 认证（token 过期 20001、微信授权失败 20002、token 无效 20003）     |
+| `3xxxx` | 笔记（不存在 30001、已删除 30002、类型不允许操作 30003）           |
+| `4xxxx` | 分类/标签（重复 40001、层级超限 40002）                            |
+| `6xxxx` | 存储（上传失败 60001、文件超限 60002、签名过期 60003）             |
 
 ### 异常处理
 

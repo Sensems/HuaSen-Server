@@ -13,6 +13,7 @@
 ### Task 1: Prisma Schema Migration
 
 **Files:**
+
 - Modify: `prisma/schema.prisma` (User +3 fields, +EmailVerificationCode model)
 
 - [ ] **Step 1: Add new fields to User model**
@@ -73,6 +74,7 @@ git commit -m "feat: add email, password, bindingCode to User; add EmailVerifica
 ### Task 2: Install Dependencies
 
 **Files:**
+
 - Modify: `package.json`, `package-lock.json`
 
 - [ ] **Step 1: Install packages**
@@ -101,6 +103,7 @@ git commit -m "chore: add resend, bcrypt, @nestjs/throttler dependencies"
 ### Task 3: Error Codes
 
 **Files:**
+
 - Modify: `src/common/constants/error-codes.ts`
 
 - [ ] **Step 1: Add error code enum entries**
@@ -150,6 +153,7 @@ git commit -m "feat: add email auth error codes (20010-20015)"
 ### Task 4: Config Namespaces
 
 **Files:**
+
 - Modify: `src/config/configuration.ts`
 
 - [ ] **Step 1: Add email config namespace**
@@ -160,17 +164,17 @@ After the qiniuConfig export (after line 28), add:
 /**
  * 邮件服务配置（Resend）
  */
-export const emailConfig = registerAs('email', () => ({
-  resendApiKey: process.env.RESEND_API_KEY || '',
-  from: process.env.EMAIL_FROM || '森华笔记 <noreply@example.com>',
+export const emailConfig = registerAs("email", () => ({
+  resendApiKey: process.env.RESEND_API_KEY || "",
+  from: process.env.EMAIL_FROM || "花森笔记 <noreply@example.com>",
 }));
 
 /**
  * 限流配置
  */
-export const throttleConfig = registerAs('throttle', () => ({
-  ttl: parseInt(process.env.THROTTLE_TTL || '60000', 10),
-  limit: parseInt(process.env.THROTTLE_LIMIT || '1', 10),
+export const throttleConfig = registerAs("throttle", () => ({
+  ttl: parseInt(process.env.THROTTLE_TTL || "60000", 10),
+  limit: parseInt(process.env.THROTTLE_LIMIT || "1", 10),
 }));
 ```
 
@@ -179,11 +183,19 @@ export const throttleConfig = registerAs('throttle', () => ({
 In `src/app.module.ts` line 5, update the import and the load array:
 
 Import (line 5):
+
 ```typescript
-import { appConfig, wechatConfig, qiniuConfig, emailConfig, throttleConfig } from './config/configuration';
+import {
+  appConfig,
+  wechatConfig,
+  qiniuConfig,
+  emailConfig,
+  throttleConfig,
+} from "./config/configuration";
 ```
 
 Load (line 29):
+
 ```typescript
 load: [appConfig, wechatConfig, qiniuConfig, emailConfig, throttleConfig],
 ```
@@ -208,6 +220,7 @@ git commit -m "feat: add email and throttle config namespaces"
 ### Task 5: Mail Module
 
 **Files:**
+
 - Create: `src/mail/mail.service.ts`
 - Create: `src/mail/mail.module.ts`
 - Modify: `src/app.module.ts`
@@ -217,9 +230,9 @@ git commit -m "feat: add email and throttle config namespaces"
 Create `src/mail/mail.service.ts`:
 
 ```typescript
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Resend } from "resend";
 
 /**
  * 邮件服务
@@ -236,12 +249,12 @@ export class MailService {
    */
   async sendVerificationCode(email: string, code: string): Promise<void> {
     const resend = new Resend(
-      this.configService.get<string>('email.resendApiKey'),
+      this.configService.get<string>("email.resendApiKey"),
     );
     const { error } = await resend.emails.send({
-      from: this.configService.get<string>('email.from'),
+      from: this.configService.get<string>("email.from"),
       to: email,
-      subject: '森华笔记 - 邮箱验证码',
+      subject: "花森笔记 - 邮箱验证码",
       html: `<p>您的验证码是：<strong>${code}</strong>，10分钟内有效。</p>`,
     });
     if (error) {
@@ -256,8 +269,8 @@ export class MailService {
 Create `src/mail/mail.module.ts`:
 
 ```typescript
-import { Global, Module } from '@nestjs/common';
-import { MailService } from './mail.service';
+import { Global, Module } from "@nestjs/common";
+import { MailService } from "./mail.service";
 
 /**
  * 邮件模块（全局）
@@ -274,6 +287,7 @@ export class MailModule {}
 - [ ] **Step 3: Register MailModule in AppModule**
 
 In `src/app.module.ts`:
+
 1. Add import: `import { MailModule } from './mail/mail.module';`
 2. Add `MailModule` to the `imports` array (before AuthModule)
 
@@ -297,6 +311,7 @@ git commit -m "feat: add MailModule with Resend integration"
 ### Task 6: DTOs
 
 **Files:**
+
 - Create: `src/auth/dto/email-send-code.dto.ts`
 - Create: `src/auth/dto/email-register.dto.ts`
 - Create: `src/auth/dto/email-login.dto.ts`
@@ -306,16 +321,16 @@ git commit -m "feat: add MailModule with Resend integration"
 Create `src/auth/dto/email-send-code.dto.ts`:
 
 ```typescript
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty } from 'class-validator';
+import { ApiProperty } from "@nestjs/swagger";
+import { IsEmail, IsNotEmpty } from "class-validator";
 
 /**
  * 发送邮箱验证码请求 DTO
  */
 export class EmailSendCodeDto {
   @ApiProperty({
-    description: '接收验证码的邮箱',
-    example: 'user@example.com',
+    description: "接收验证码的邮箱",
+    example: "user@example.com",
     required: true,
   })
   @IsNotEmpty()
@@ -329,16 +344,23 @@ export class EmailSendCodeDto {
 Create `src/auth/dto/email-register.dto.ts`:
 
 ```typescript
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, Length, Matches, MinLength } from 'class-validator';
+import { ApiProperty } from "@nestjs/swagger";
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  Length,
+  Matches,
+  MinLength,
+} from "class-validator";
 
 /**
  * 邮箱注册请求 DTO
  */
 export class EmailRegisterDto {
   @ApiProperty({
-    description: '邮箱',
-    example: 'user@example.com',
+    description: "邮箱",
+    example: "user@example.com",
     required: true,
   })
   @IsNotEmpty()
@@ -346,21 +368,21 @@ export class EmailRegisterDto {
   email!: string;
 
   @ApiProperty({
-    description: '密码（≥8位，必须包含字母和数字）',
-    example: 'Abc12345',
+    description: "密码（≥8位，必须包含字母和数字）",
+    example: "Abc12345",
     required: true,
   })
   @IsNotEmpty()
   @IsString()
   @MinLength(8)
   @Matches(/^(?=.*[a-zA-Z])(?=.*\d)/, {
-    message: '密码必须包含至少一个字母和一个数字',
+    message: "密码必须包含至少一个字母和一个数字",
   })
   password!: string;
 
   @ApiProperty({
-    description: '6位数字验证码',
-    example: '482931',
+    description: "6位数字验证码",
+    example: "482931",
     required: true,
   })
   @IsNotEmpty()
@@ -375,16 +397,16 @@ export class EmailRegisterDto {
 Create `src/auth/dto/email-login.dto.ts`:
 
 ```typescript
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty } from "@nestjs/swagger";
+import { IsEmail, IsNotEmpty, IsString } from "class-validator";
 
 /**
  * 邮箱登录请求 DTO
  */
 export class EmailLoginDto {
   @ApiProperty({
-    description: '邮箱',
-    example: 'user@example.com',
+    description: "邮箱",
+    example: "user@example.com",
     required: true,
   })
   @IsNotEmpty()
@@ -392,8 +414,8 @@ export class EmailLoginDto {
   email!: string;
 
   @ApiProperty({
-    description: '密码',
-    example: 'Abc12345',
+    description: "密码",
+    example: "Abc12345",
     required: true,
   })
   @IsNotEmpty()
@@ -422,6 +444,7 @@ git commit -m "feat: add email auth DTOs (send-code, register, login)"
 ### Task 7: JWT Strategy & CurrentUser Decorator
 
 **Files:**
+
 - Modify: `src/auth/strategies/jwt.strategy.ts`
 - Modify: `src/common/decorators/current-user.decorator.ts`
 
@@ -431,9 +454,9 @@ In `src/auth/strategies/jwt.strategy.ts`, change `JwtPayload` (lines 10-13) to:
 
 ```typescript
 export interface JwtPayload {
-  sub: string;      // 用户 ID
-  openid?: string;  // 微信 openId（邮箱用户为 undefined）
-  email?: string;   // 邮箱（微信用户为 undefined）
+  sub: string; // 用户 ID
+  openid?: string; // 微信 openId（邮箱用户为 undefined）
+  email?: string; // 邮箱（微信用户为 undefined）
 }
 ```
 
@@ -442,13 +465,13 @@ export interface JwtPayload {
 In the same file, update the `validate()` return (lines 43-48) to:
 
 ```typescript
-    return {
-      id: user.id,
-      openid: user.wxOpenid,
-      nickname: user.nickname,
-      role: user.role,
-      email: user.email,
-    };
+return {
+  id: user.id,
+  openid: user.wxOpenid,
+  nickname: user.nickname,
+  role: user.role,
+  email: user.email,
+};
 ```
 
 - [ ] **Step 3: Extend CurrentUserInfo interface**
@@ -485,6 +508,7 @@ git commit -m "feat: extend JwtPayload and CurrentUserInfo with optional email"
 ### Task 8: AuthService — Core Email Logic
 
 **Files:**
+
 - Modify: `src/auth/auth.service.ts`
 
 - [ ] **Step 1: Add new imports**
@@ -492,11 +516,11 @@ git commit -m "feat: extend JwtPayload and CurrentUserInfo with optional email"
 At the top of `src/auth/auth.service.ts`, add after existing imports:
 
 ```typescript
-import { MailService } from '../mail/mail.service';
-import { EmailSendCodeDto } from './dto/email-send-code.dto';
-import { EmailRegisterDto } from './dto/email-register.dto';
-import { EmailLoginDto } from './dto/email-login.dto';
-import bcrypt from 'bcrypt';
+import { MailService } from "../mail/mail.service";
+import { EmailSendCodeDto } from "./dto/email-send-code.dto";
+import { EmailRegisterDto } from "./dto/email-register.dto";
+import { EmailLoginDto } from "./dto/email-login.dto";
+import bcrypt from "bcrypt";
 ```
 
 - [ ] **Step 2: Inject MailService**
@@ -542,13 +566,17 @@ Change the existing `generateTokens` method (line 146) to:
 In `refreshToken()` method (line 111), change:
 
 ```typescript
-      return this.generateTokens(payload.sub, payload.openid);
+return this.generateTokens(payload.sub, payload.openid);
 ```
 
 To:
 
 ```typescript
-      return this.generateTokens(payload.sub, payload.openid || undefined, payload.email);
+return this.generateTokens(
+  payload.sub,
+  payload.openid || undefined,
+  payload.email,
+);
 ```
 
 - [ ] **Step 5: Update wechatLogin to pass email**
@@ -556,13 +584,13 @@ To:
 In `wechatLogin()` method (line 94), change:
 
 ```typescript
-    return this.generateTokens(user.id, user.wxOpenid || '');
+return this.generateTokens(user.id, user.wxOpenid || "");
 ```
 
 To:
 
 ```typescript
-    return this.generateTokens(user.id, user.wxOpenid || undefined);
+return this.generateTokens(user.id, user.wxOpenid || undefined);
 ```
 
 - [ ] **Step 6: Add sendEmailCode method**
@@ -737,6 +765,7 @@ git commit -m "feat: add email auth service methods (sendCode, register, login, 
 ### Task 9: AuthController — Email Routes
 
 **Files:**
+
 - Modify: `src/auth/auth.controller.ts`
 
 - [ ] **Step 1: Add imports**
@@ -744,9 +773,9 @@ git commit -m "feat: add email auth service methods (sendCode, register, login, 
 In `src/auth/auth.controller.ts`, add after existing DTO imports:
 
 ```typescript
-import { EmailSendCodeDto } from './dto/email-send-code.dto';
-import { EmailRegisterDto } from './dto/email-register.dto';
-import { EmailLoginDto } from './dto/email-login.dto';
+import { EmailSendCodeDto } from "./dto/email-send-code.dto";
+import { EmailRegisterDto } from "./dto/email-register.dto";
+import { EmailLoginDto } from "./dto/email-login.dto";
 ```
 
 - [ ] **Step 2: Add send-code route**
@@ -829,6 +858,7 @@ git commit -m "feat: add email auth controller routes (send-code, register, logi
 ### Task 10: Throttler Integration
 
 **Files:**
+
 - Modify: `src/auth/auth.module.ts`
 - Modify: `src/auth/auth.controller.ts`
 - Modify: `src/app.module.ts`
@@ -838,7 +868,7 @@ git commit -m "feat: add email auth controller routes (send-code, register, logi
 In `src/auth/auth.module.ts`, add import:
 
 ```typescript
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from "@nestjs/throttler";
 ```
 
 Add `ThrottlerModule` to the `imports` array (before `PassportModule`):
@@ -855,6 +885,7 @@ Add `ThrottlerModule` to the `imports` array (before `PassportModule`):
 - [ ] **Step 2: Register ThrottlerGuard as global APP_GUARD**
 
 In `src/app.module.ts`:
+
 1. Add import: `import { ThrottlerGuard } from '@nestjs/throttler';`
 2. Add after the JwtAuthGuard provider (line 46):
 
@@ -867,7 +898,7 @@ In `src/app.module.ts`:
 In `src/auth/auth.controller.ts`, add import:
 
 ```typescript
-import { Throttle } from '@nestjs/throttler';
+import { Throttle } from "@nestjs/throttler";
 ```
 
 Update `sendEmailCode()` to include:
@@ -906,6 +937,7 @@ git commit -m "feat: add IP throttling for send-code (1/min) and login (5/min)"
 ### Task 11: Environment Variables
 
 **Files:**
+
 - Modify: `.env.example`
 
 - [ ] **Step 1: Update .env.example**
@@ -915,7 +947,7 @@ Append to `.env.example`:
 ```env
 # Resend 邮件服务
 RESEND_API_KEY=re_xxxxxxxxxxxx
-EMAIL_FROM=森华笔记 <noreply@your-domain.com>
+EMAIL_FROM=花森笔记 <noreply@your-domain.com>
 
 # 限流配置（可选）
 THROTTLE_TTL=60000
@@ -936,6 +968,7 @@ git commit -m "chore: add email and throttle env vars to .env.example"
 ### Task 12: Rethrow as BusinessException on email send failure
 
 **Files:**
+
 - Modify: `src/auth/auth.service.ts`
 
 - [ ] **Step 1: Wrap sendEmailCode with error handling**
@@ -987,6 +1020,7 @@ git commit -m "fix: wrap mail send in try/catch with BusinessException"
 ### Task 13: Unit Tests — MailService
 
 **Files:**
+
 - Create: `src/mail/mail.service.spec.ts`
 
 - [ ] **Step 1: Create MailService unit tests**
@@ -994,20 +1028,23 @@ git commit -m "fix: wrap mail send in try/catch with BusinessException"
 Create `src/mail/mail.service.spec.ts`:
 
 ```typescript
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { MailService } from './mail.service';
-import { Resend } from 'resend';
+import { Test, TestingModule } from "@nestjs/testing";
+import { ConfigService } from "@nestjs/config";
+import { MailService } from "./mail.service";
+import { Resend } from "resend";
 
-jest.mock('resend');
+jest.mock("resend");
 
 const mockResendSend = jest.fn();
 
-(Resend as jest.MockedClass<typeof Resend>).mockImplementation(() => ({
-  emails: { send: mockResendSend },
-} as any));
+(Resend as jest.MockedClass<typeof Resend>).mockImplementation(
+  () =>
+    ({
+      emails: { send: mockResendSend },
+    }) as any,
+);
 
-describe('MailService', () => {
+describe("MailService", () => {
   let service: MailService;
   let configService: ConfigService;
 
@@ -1020,8 +1057,8 @@ describe('MailService', () => {
           useValue: {
             get: jest.fn((key: string) => {
               const map: Record<string, string> = {
-                'email.resendApiKey': 're_test_key',
-                'email.from': 'Test <test@example.com>',
+                "email.resendApiKey": "re_test_key",
+                "email.from": "Test <test@example.com>",
               };
               return map[key];
             }),
@@ -1035,28 +1072,28 @@ describe('MailService', () => {
     mockResendSend.mockReset();
   });
 
-  it('should send verification code email with correct parameters', async () => {
-    mockResendSend.mockResolvedValue({ data: { id: 'msg_123' }, error: null });
+  it("should send verification code email with correct parameters", async () => {
+    mockResendSend.mockResolvedValue({ data: { id: "msg_123" }, error: null });
 
-    await service.sendVerificationCode('user@example.com', '482931');
+    await service.sendVerificationCode("user@example.com", "482931");
 
     expect(mockResendSend).toHaveBeenCalledWith({
-      from: 'Test <test@example.com>',
-      to: 'user@example.com',
-      subject: '森华笔记 - 邮箱验证码',
-      html: '<p>您的验证码是：<strong>482931</strong>，10分钟内有效。</p>',
+      from: "Test <test@example.com>",
+      to: "user@example.com",
+      subject: "花森笔记 - 邮箱验证码",
+      html: "<p>您的验证码是：<strong>482931</strong>，10分钟内有效。</p>",
     });
   });
 
-  it('should throw error when Resend returns error', async () => {
+  it("should throw error when Resend returns error", async () => {
     mockResendSend.mockResolvedValue({
       data: null,
-      error: { message: 'Invalid API key' },
+      error: { message: "Invalid API key" },
     });
 
     await expect(
-      service.sendVerificationCode('user@example.com', '482931'),
-    ).rejects.toThrow('Resend send failed: Invalid API key');
+      service.sendVerificationCode("user@example.com", "482931"),
+    ).rejects.toThrow("Resend send failed: Invalid API key");
   });
 });
 ```
@@ -1081,6 +1118,7 @@ git commit -m "test: add MailService unit tests"
 ### Task 14: Unit Tests — AuthService Email Methods
 
 **Files:**
+
 - Create: `src/auth/auth.service.email.spec.ts`
 
 - [ ] **Step 1: Create AuthService email unit tests**
@@ -1090,7 +1128,7 @@ Create `src/auth/auth.service.email.spec.ts`. Because AuthService depends on Jwt
 **NOTE: Full test file is abbreviated here for brevity. The implementer should write tests covering:**
 
 1. `sendEmailCode`: verify code is 6-digit, verify code written to DB, verify mailService called
-2. `emailRegister`: 
+2. `emailRegister`:
    - Email already registered → throws EMAIL_ALREADY_REGISTERED
    - Invalid verification code → throws VERIFICATION_CODE_INVALID
    - Expired verification code → throws VERIFICATION_CODE_EXPIRED
@@ -1120,11 +1158,13 @@ git commit -m "test: add AuthService email method unit tests"
 ### Task 15: E2E Tests — Email Auth Flow
 
 **Files:**
+
 - Create: `test/auth-email.e2e-spec.ts`
 
 - [ ] **Step 1: Create E2E test file**
 
 Create `test/auth-email.e2e-spec.ts`. The test should:
+
 1. POST `/auth/email/send-code` — verify 200 response, verify throttling header
 2. POST `/auth/email/send-code` again — verify 429 (RATE_LIMITED) on immediate retry
 3. POST `/auth/email/register` with wrong code — verify 20012

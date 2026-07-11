@@ -4,12 +4,14 @@
 **Stack:** NestJS 11 + Fastify + Prisma 7 + PostgreSQL + Redis/BullMQ + TypeScript 6
 
 ## OVERVIEW
-森华笔记 (Senhua Notes) — 微信公众号驱动的个人笔记系统。用户给公众号发消息 → 服务端自动创建笔记。支持多媒体（图片/语音/视频/文件）异步下载上传七牛云、JWT 认证、分类/标签管理。
+
+花森笔记 (Senhua Notes) — 微信公众号驱动的个人笔记系统。用户给公众号发消息 → 服务端自动创建笔记。支持多媒体（图片/语音/视频/文件）异步下载上传七牛云、JWT 认证、分类/标签管理。
 
 ## STRUCTURE
+
 ```
 src/
-├── main.ts              # FastifyAdapter bootstrap
+├── main.ts              # FastifyAdapter bootstrap 
 ├── app.module.ts        # 根模块（全局 filter/interceptor/guard）
 ├── common/              # 跨模块基础设施 → see common/AGENTS.md
 ├── auth/                # JWT + 微信 OAuth → see auth/AGENTS.md
@@ -26,17 +28,19 @@ src/
 ```
 
 ## WHERE TO LOOK
-| 任务 | 位置 | 注意 |
-|------|------|------|
-| 添加新 API | 对应 domain 的 controller.ts | GET-only 读取，POST-only 写入 |
-| 修改数据模型 | `prisma/schema.prisma` → `npx prisma migrate dev` |
-| 添加认证 | `auth/guards/jwt-auth.guard.ts`，用 `@Public()` 豁免 |
-| 微信消息处理 | `wechat/wechat.service.ts` → `queue/processors/wechat-message.processor.ts` |
+
+| 任务          | 位置                                                                            | 注意                          |
+| ------------- | ------------------------------------------------------------------------------- | ----------------------------- |
+| 添加新 API    | 对应 domain 的 controller.ts                                                    | GET-only 读取，POST-only 写入 |
+| 修改数据模型  | `prisma/schema.prisma` → `npx prisma migrate dev`                               |
+| 添加认证      | `auth/guards/jwt-auth.guard.ts`，用 `@Public()` 豁免                            |
+| 微信消息处理  | `wechat/wechat.service.ts` → `queue/processors/wechat-message.processor.ts`     |
 | 媒体上传/关联 | `storage/storage.service.ts`（七牛云）→ `media/media.service.ts`（DB 生命周期） |
-| 队列/异步任务 | `queue/queue.module.ts` → `queue/processors/` |
-| 环境配置 | `.env` → `config/configuration.ts` |
+| 队列/异步任务 | `queue/queue.module.ts` → `queue/processors/`                                   |
+| 环境配置      | `.env` → `config/configuration.ts`                                              |
 
 ## CONVENTIONS
+
 - **API**: 仅用 `GET` 和 `POST`，路径末尾为动作名（`/create`, `/update`, `/delete`）
 - **响应格式**: `{ code: 0, data: ..., message: "ok" }`，错误码见 `common/constants/error-codes.ts`
 - **认证**: 全局 JwtAuthGuard，用 `@Public()` 装饰器豁免公开路由（`/auth/*`, `/wechat/*`）
@@ -46,12 +50,14 @@ src/
 - **Prisma 7**: 必须用 driver adapter（`PrismaPg`），不能直接用 `datasourceUrl`
 
 ## ANTI-PATTERNS (THIS PROJECT)
+
 - **不要用 PATCH/DELETE/PUT** — 只用 GET/POST
 - **不要直接 `new PrismaClient()`** — 必须通过 `PrismaService` 或传 `adapter: new PrismaPg()`
 - **不要在微信回调路径返回 JSON** — `/wechat/*` 必须返回纯文本 `success`
 - **不要在 Controller 层做业务逻辑** — Controller 只做参数接收和路由
 
 ## COMMANDS
+
 ```bash
 npx prisma generate          # 生成 Prisma Client
 npx prisma migrate dev       # 数据库迁移
@@ -62,7 +68,18 @@ npm run test:e2e             # E2E 测试（需要 PostgreSQL + Redis）
 ```
 
 ## NOTES
+
 - `nest build` 有时因 tsbuildinfo 缓存不产出文件，`start:dev` 已指定 `-p tsconfig.build.json`（`incremental: false`）
 - 微信去重索引需手动执行 SQL：`CREATE UNIQUE INDEX ... ON notes ((meta->>'wechat_msg_id'))`
 - 多媒体上传需要 `WECHAT_APP_SECRET` 获取 access_token
 - Redis 不可用时 BullMQ 队列功能不可用，但 REST API 仍正常工作
+
+## Learned User Preferences
+
+- When adapting external UI or email design references, keep the product brand「花森笔记」and only reuse layout/colors—do not copy third-party brand names.
+
+## Learned Workspace Facts
+
+- Package manager is pnpm; after `pnpm install`, run `pnpm exec prisma generate`. Under pnpm, Prisma Client needs `.npmrc` public-hoist-pattern entries for `*prisma*` and `*@prisma*` or `@prisma/client` fails to resolve.
+- Nest dev server defaults to port 3000; Swagger UI is at `/api/docs`.
+- Email sending lives in `src/mail/` (nodemailer SMTP); verification emails use「花森笔记」branding with a coral accent and a large spaced verification code.

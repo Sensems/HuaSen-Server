@@ -1,13 +1,13 @@
-# 森华笔记服务 - 部署运行指南
+# 花森笔记服务 - 部署运行指南
 
 ## 环境要求
 
-| 组件 | 版本要求 | 用途 |
-|------|---------|------|
-| Node.js | >= 18 | 运行时 |
-| PostgreSQL | >= 14 | 主数据库 |
-| Redis | >= 6 | 消息队列（BullMQ）+ 缓存 |
-| 微信公众号 | 已认证订阅号 | 消息接收入口 |
+| 组件       | 版本要求     | 用途                     |
+| ---------- | ------------ | ------------------------ |
+| Node.js    | >= 18        | 运行时                   |
+| PostgreSQL | >= 14        | 主数据库                 |
+| Redis      | >= 6         | 消息队列（BullMQ）+ 缓存 |
+| 微信公众号 | 已认证订阅号 | 消息接收入口             |
 
 ## 一、安装 PostgreSQL
 
@@ -127,6 +127,7 @@ node dist/main.js
 ```
 
 启动成功后会看到：
+
 ```
 [Nest] xxx  - LOG [NestApplication] Nest application successfully started
 Application is running on: http://0.0.0.0:3000
@@ -155,6 +156,7 @@ node --watch dist/main.js                        # 终端 2：监听运行（Nod
 6. 验证通过后，用户给公众号发消息即可自动创建笔记
 
 > 本地开发可使用 [ngrok](https://ngrok.com/) 将 localhost:3000 暴露为公网 HTTPS：
+>
 > ```bash
 > ngrok http 3000
 > ```
@@ -176,38 +178,39 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3000/notes
 
 ### 所有 API 端点
 
-| 方法 | 路径 | 需要认证 | 说明 |
-|------|------|---------|------|
-| `GET` | `/notes` | ✅ | 笔记列表 |
-| `GET` | `/notes/detail?id=` | ✅ | 笔记详情 |
-| `POST` | `/notes/create` | ✅ | 创建笔记 |
-| `POST` | `/notes/update` | ✅ | 更新笔记 |
-| `POST` | `/notes/delete` | ✅ | 删除笔记 |
-| `POST` | `/notes/publish` | ✅ | 发布笔记 |
-| `POST` | `/notes/archive` | ✅ | 归档/取消归档 |
-| `GET` | `/notes/media?note_id=` | ✅ | 笔记多媒体 |
-| `GET` | `/notes/share?id=` | ✅ | 分享链接 |
-| `GET` | `/categories` | ✅ | 分类列表 |
-| `POST` | `/categories/create` | ✅ | 创建分类 |
-| `POST` | `/categories/update` | ✅ | 更新分类 |
-| `POST` | `/categories/delete` | ✅ | 删除分类 |
-| `POST` | `/categories/reorder` | ✅ | 拖拽排序 |
-| `GET` | `/tags` | ✅ | 标签列表 |
-| `POST` | `/tags/create` | ✅ | 创建标签 |
-| `POST` | `/tags/delete` | ✅ | 删除标签 |
-| `GET` | `/storage/upload-token` | ✅ | 七牛云上传 Token |
-| `POST` | `/storage/delete` | ✅ | 删除文件 |
-| `GET` | `/wechat/callback` | ❌ | 微信服务器验证 |
-| `POST` | `/wechat/callback` | ❌ | 接收微信消息 |
-| `POST` | `/auth/wechat/callback` | ❌ | 微信 OAuth 登录 |
-| `POST` | `/auth/refresh` | ❌ | 刷新 Token |
-| `POST` | `/auth/logout` | ✅ | 登出 |
+| 方法   | 路径                    | 需要认证 | 说明             |
+| ------ | ----------------------- | -------- | ---------------- |
+| `GET`  | `/notes`                | ✅       | 笔记列表         |
+| `GET`  | `/notes/detail?id=`     | ✅       | 笔记详情         |
+| `POST` | `/notes/create`         | ✅       | 创建笔记         |
+| `POST` | `/notes/update`         | ✅       | 更新笔记         |
+| `POST` | `/notes/delete`         | ✅       | 删除笔记         |
+| `POST` | `/notes/publish`        | ✅       | 发布笔记         |
+| `POST` | `/notes/archive`        | ✅       | 归档/取消归档    |
+| `GET`  | `/notes/media?note_id=` | ✅       | 笔记多媒体       |
+| `GET`  | `/notes/share?id=`      | ✅       | 分享链接         |
+| `GET`  | `/categories`           | ✅       | 分类列表         |
+| `POST` | `/categories/create`    | ✅       | 创建分类         |
+| `POST` | `/categories/update`    | ✅       | 更新分类         |
+| `POST` | `/categories/delete`    | ✅       | 删除分类         |
+| `POST` | `/categories/reorder`   | ✅       | 拖拽排序         |
+| `GET`  | `/tags`                 | ✅       | 标签列表         |
+| `POST` | `/tags/create`          | ✅       | 创建标签         |
+| `POST` | `/tags/delete`          | ✅       | 删除标签         |
+| `GET`  | `/storage/upload-token` | ✅       | 七牛云上传 Token |
+| `POST` | `/storage/delete`       | ✅       | 删除文件         |
+| `GET`  | `/wechat/callback`      | ❌       | 微信服务器验证   |
+| `POST` | `/wechat/callback`      | ❌       | 接收微信消息     |
+| `POST` | `/auth/wechat/callback` | ❌       | 微信 OAuth 登录  |
+| `POST` | `/auth/refresh`         | ❌       | 刷新 Token       |
+| `POST` | `/auth/logout`          | ✅       | 登出             |
 
 ---
 
 ## 八、常见问题
 
 ### 编译失败
+
 ```bash
 # 删除构建缓存重试
 rm -rf dist tsconfig.build.tsbuildinfo
@@ -215,15 +218,18 @@ npx tsc --project tsconfig.build.json
 ```
 
 ### 数据库连接失败
+
 - 确认 PostgreSQL 服务已启动
 - 检查 `.env` 中 `DATABASE_URL` 格式正确
 - 确认用户名、密码、数据库名正确
 
 ### Redis 连接失败
+
 - 确认 Redis 服务已启动：`redis-cli ping` 应返回 `PONG`
 - 检查 `.env` 中 `REDIS_HOST` 和 `REDIS_PORT`
 
 ### 微信验证失败
+
 - 确认 URL 是公网可访问的 HTTPS 地址
 - 确认 Token 和 EncodingAESKey 与 `.env` 配置一致
 - 检查服务器日志是否有报错

@@ -8,7 +8,7 @@
 
 ## 1. 需求概述
 
-为森华笔记添加邮箱注册和邮箱登录功能，作为微信登录之外的独立认证渠道。未来支持微信账号与邮箱账号的互相绑定（通过 bindingCode 机制），本期仅实现邮箱注册/登录核心流程。
+为花森笔记添加邮箱注册和邮箱登录功能，作为微信登录之外的独立认证渠道。未来支持微信账号与邮箱账号的互相绑定（通过 bindingCode 机制），本期仅实现邮箱注册/登录核心流程。
 
 ### 1.1 功能范围（本期）
 
@@ -28,16 +28,16 @@
 
 ## 2. 技术决策
 
-| 决策点 | 选择 | 理由 |
-|---|---|---|
-| 架构方案 | Auth 模块扩展 + 独立 Mail 模块 | 复用 generateTokens，邮件发送隔离可测 |
-| 邮件服务 | Resend API | 免费额度 100封/天，SDK 轻量 |
-| 验证码存储 | Prisma 数据库表 | 与现有 DB-first 模式一致，无需新建 Redis 服务 |
-| 注册流程 | 两步注册（发码 → 注册） | 简洁，一次交互完成 |
-| 密码策略 | ≥8位，必须包含字母和数字 | 适度安全，不过度复杂 |
-| 验证码格式 | 6位数字，10分钟有效 | 简单，用户体验好 |
-| 限流策略 | IP 限流（@nestjs/throttler） | 实现简单，覆盖主要滥用场景 |
-| 账号模型 | 统一 User 表，email/wxOpenid 均可空 | 同一用户可同时拥有两种身份 |
+| 决策点     | 选择                                | 理由                                          |
+| ---------- | ----------------------------------- | --------------------------------------------- |
+| 架构方案   | Auth 模块扩展 + 独立 Mail 模块      | 复用 generateTokens，邮件发送隔离可测         |
+| 邮件服务   | Resend API                          | 免费额度 100封/天，SDK 轻量                   |
+| 验证码存储 | Prisma 数据库表                     | 与现有 DB-first 模式一致，无需新建 Redis 服务 |
+| 注册流程   | 两步注册（发码 → 注册）             | 简洁，一次交互完成                            |
+| 密码策略   | ≥8位，必须包含字母和数字            | 适度安全，不过度复杂                          |
+| 验证码格式 | 6位数字，10分钟有效                 | 简单，用户体验好                              |
+| 限流策略   | IP 限流（@nestjs/throttler）        | 实现简单，覆盖主要滥用场景                    |
+| 账号模型   | 统一 User 表，email/wxOpenid 均可空 | 同一用户可同时拥有两种身份                    |
 
 ---
 
@@ -108,6 +108,7 @@ model EmailVerificationCode {
 - `usedAt`：使用时间。非空表示已使用，防止验证码重用。
 
 **验证码校验逻辑**：
+
 ```sql
 SELECT * FROM email_verification_codes
 WHERE email = ? AND code = ? AND purpose = 'register'
@@ -148,7 +149,7 @@ EMAIL_SEND_FAILED          = 20015,  // 邮件发送失败
 ```env
 # Resend 邮件服务
 RESEND_API_KEY=re_xxxxxxxxxxxx
-EMAIL_FROM=森华笔记 <noreply@your-domain.com>
+EMAIL_FROM=花森笔记 <noreply@your-domain.com>
 
 # 限流配置（可选，有默认值）
 THROTTLE_TTL=60000
@@ -160,7 +161,7 @@ THROTTLE_LIMIT=1
 ```typescript
 emailConfig: registerAs('email', () => ({
   resendApiKey: process.env.RESEND_API_KEY || '',
-  from: process.env.EMAIL_FROM || '森华笔记 <noreply@example.com>',
+  from: process.env.EMAIL_FROM || '花森笔记 <noreply@example.com>',
 })),
 throttleConfig: registerAs('throttle', () => ({
   ttl: parseInt(process.env.THROTTLE_TTL || '60000', 10),
@@ -183,6 +184,7 @@ Throttle: 同一 IP 60秒内最多 1 次
 ```
 
 **请求体**：
+
 ```json
 {
   "email": "user@example.com"
@@ -190,20 +192,24 @@ Throttle: 同一 IP 60秒内最多 1 次
 ```
 
 **DTO 校验**：
+
 - `email`：`@IsEmail()`, `@IsNotEmpty()`，`!:` 断言
 
 **成功响应**：
+
 ```json
 { "code": 0, "message": "ok", "data": null }
 ```
 
 **错误响应**：
+
 ```json
 { "code": 20015, "message": "邮件发送失败，请稍后重试", "data": null }
 { "code": 10003, "message": "请求过于频繁", "data": null }
 ```
 
 **处理逻辑**：
+
 1. IP 限流检查（`@Throttle({ default: { limit: 1, ttl: 60000 } })`）
 2. 生成 6 位随机数字验证码
 3. 写入 `email_verification_codes` 表（`purpose='register'`, `expiresAt = now + 10min`）
@@ -222,6 +228,7 @@ Auth: @Public()
 ```
 
 **请求体**：
+
 ```json
 {
   "email": "user@example.com",
@@ -231,12 +238,14 @@ Auth: @Public()
 ```
 
 **DTO 校验**：
+
 - `email`：`@IsEmail()`, `@IsNotEmpty()`
 - `password`：`@IsString()`, `@MinLength(8)`, `@Matches(/^(?=.*[a-zA-Z])(?=.*\d)/)`
 - `code`：`@IsString()`, `@Length(6, 6)`
 - 全部使用 `!:` 断言
 
 **成功响应**：
+
 ```json
 {
   "code": 0,
@@ -250,6 +259,7 @@ Auth: @Public()
 ```
 
 **错误响应**：
+
 ```json
 { "code": 20010, "message": "该邮箱已注册", "data": null }
 { "code": 20012, "message": "验证码错误", "data": null }
@@ -257,6 +267,7 @@ Auth: @Public()
 ```
 
 **处理逻辑**：
+
 1. 检查邮箱是否已注册（`User.findUnique({ where: { email } })`）
 2. 校验验证码（查 `email_verification_codes` 表，匹配 `email + code + purpose='register' + usedAt IS NULL + expiresAt > now()` 的最新一条）
 3. 标记验证码已使用（`UPDATE email_verification_codes SET used_at = NOW()`）
@@ -273,6 +284,7 @@ Auth: @Public()
 ```
 
 **请求体**：
+
 ```json
 {
   "email": "user@example.com",
@@ -281,11 +293,13 @@ Auth: @Public()
 ```
 
 **DTO 校验**：
+
 - `email`：`@IsEmail()`, `@IsNotEmpty()`
 - `password`：`@IsString()`, `@IsNotEmpty()`
 - 全部使用 `!:` 断言
 
 **成功响应**：
+
 ```json
 {
   "code": 0,
@@ -299,6 +313,7 @@ Auth: @Public()
 ```
 
 **错误响应**：
+
 ```json
 { "code": 20011, "message": "该邮箱未注册", "data": null }
 { "code": 20014, "message": "密码错误", "data": null }
@@ -306,12 +321,13 @@ Auth: @Public()
 ```
 
 **处理逻辑**：
+
 1. IP 限流检查（`@Throttle({ default: { limit: 5, ttl: 60000 } })` — 每分钟最多5次，防暴力破解）
 2. 查 User by email（`User.findUnique({ where: { email } })`）
-2. 不存在 → 抛 `EMAIL_NOT_FOUND`
-3. bcrypt.compare(password, user.passwordHash)
-4. 不匹配 → 抛 `PASSWORD_INCORRECT`
-5. 调用 `generateTokens(userId, '')` 返回 JWT
+3. 不存在 → 抛 `EMAIL_NOT_FOUND`
+4. bcrypt.compare(password, user.passwordHash)
+5. 不匹配 → 抛 `PASSWORD_INCORRECT`
+6. 调用 `generateTokens(userId, '')` 返回 JWT
 
 ---
 
@@ -332,18 +348,18 @@ src/auth/dto/                          ← 新建 DTO
 
 ### 7.2 修改文件
 
-| 文件 | 变更 |
-|---|---|
-| `prisma/schema.prisma` | User +3字段，+EmailVerificationCode 表 |
-| `src/common/constants/error-codes.ts` | +6 错误码 + ErrorMessage |
-| `src/config/configuration.ts` | +emailConfig, +throttleConfig |
-| `src/auth/auth.module.ts` | imports 加 ThrottlerModule |
-| `src/auth/auth.controller.ts` | +3 路由（send-code, register, login） |
-| `src/auth/auth.service.ts` | +sendEmailCode, emailRegister, emailLogin；**改 generateTokens 签名** |
-| `src/auth/strategies/jwt.strategy.ts` | JwtPayload +email?、openid 改为可选，validate() 加 email |
-| `src/common/decorators/current-user.decorator.ts` | CurrentUserInfo +email? |
-| `src/app.module.ts` | imports 加 MailModule, ThrottlerModule（APP_GUARD） |
-| `.env` / `.env.example` | +3 环境变量 |
+| 文件                                              | 变更                                                                  |
+| ------------------------------------------------- | --------------------------------------------------------------------- |
+| `prisma/schema.prisma`                            | User +3字段，+EmailVerificationCode 表                                |
+| `src/common/constants/error-codes.ts`             | +6 错误码 + ErrorMessage                                              |
+| `src/config/configuration.ts`                     | +emailConfig, +throttleConfig                                         |
+| `src/auth/auth.module.ts`                         | imports 加 ThrottlerModule                                            |
+| `src/auth/auth.controller.ts`                     | +3 路由（send-code, register, login）                                 |
+| `src/auth/auth.service.ts`                        | +sendEmailCode, emailRegister, emailLogin；**改 generateTokens 签名** |
+| `src/auth/strategies/jwt.strategy.ts`             | JwtPayload +email?、openid 改为可选，validate() 加 email              |
+| `src/common/decorators/current-user.decorator.ts` | CurrentUserInfo +email?                                               |
+| `src/app.module.ts`                               | imports 加 MailModule, ThrottlerModule（APP_GUARD）                   |
+| `.env` / `.env.example`                           | +3 环境变量                                                           |
 
 ### 7.3 新增依赖
 
@@ -351,12 +367,12 @@ src/auth/dto/                          ← 新建 DTO
 npm i resend bcrypt @types/bcrypt @nestjs/throttler
 ```
 
-| 包 | 版本 | 用途 |
-|---|---|---|
-| `resend` | ^4.x | Resend 邮件发送 SDK |
-| `bcrypt` | ^5.x | 密码哈希与校验 |
-| `@types/bcrypt` | ^5.x | bcrypt TypeScript 类型 |
-| `@nestjs/throttler` | ^6.x | IP 限流 |
+| 包                  | 版本 | 用途                   |
+| ------------------- | ---- | ---------------------- |
+| `resend`            | ^4.x | Resend 邮件发送 SDK    |
+| `bcrypt`            | ^5.x | 密码哈希与校验         |
+| `@types/bcrypt`     | ^5.x | bcrypt TypeScript 类型 |
+| `@nestjs/throttler` | ^6.x | IP 限流                |
 
 ---
 
@@ -376,11 +392,13 @@ export class MailService {
    * @param code 6位验证码
    */
   async sendVerificationCode(email: string, code: string): Promise<void> {
-    const resend = new Resend(this.configService.get<string>('email.resendApiKey'));
+    const resend = new Resend(
+      this.configService.get<string>("email.resendApiKey"),
+    );
     const { error } = await resend.emails.send({
-      from: this.configService.get<string>('email.from'),
+      from: this.configService.get<string>("email.from"),
       to: email,
-      subject: '森华笔记 - 邮箱验证码',
+      subject: "花森笔记 - 邮箱验证码",
       html: `<p>您的验证码是：<strong>${code}</strong>，10分钟内有效。</p>`,
     });
     if (error) {
@@ -538,10 +556,10 @@ async validate(payload: JwtPayload) {
 // common/decorators/current-user.decorator.ts
 export interface CurrentUserInfo {
   id: string;
-  openid?: string;    // 改为可选
+  openid?: string; // 改为可选
   nickname?: string;
   role: string;
-  email?: string;     // 新增
+  email?: string; // 新增
 }
 ```
 
@@ -565,13 +583,13 @@ async sendCode(@Body() body: EmailSendCodeDto) { ... }
 
 ## 9. 测试策略
 
-| 层级 | 范围 | 内容 |
-|---|---|---|
-| **单元** | MailService | Mock Resend SDK，验证 `sendVerificationCode` 参数正确传入。Resend 返回 error 时正确抛出异常。 |
-| **单元** | AuthService.sendEmailCode | Mock MailService + Prisma：验证码写入 DB、邮件发送调用、验证码格式校验（6位数字）。 |
-| **单元** | AuthService.emailRegister | 场景覆盖：①邮箱已注册→20010；②验证码错误→20012；③验证码过期→20013；④成功后 User 创建字段正确、JWT 返回。 |
-| **单元** | AuthService.emailLogin | 场景覆盖：①邮箱不存在→20011；②密码错误→20014；③登录成功→JWT 返回、bcrypt.compare 调用次数。 |
-| **E2E** | AuthController | 完整 HTTP 链路：发送验证码 → 注册 → 登录。验证限流头返回（`Retry-After`），验证 token 有效性（用拿到的 JWT 访问受保护接口）。 |
+| 层级     | 范围                      | 内容                                                                                                                          |
+| -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **单元** | MailService               | Mock Resend SDK，验证 `sendVerificationCode` 参数正确传入。Resend 返回 error 时正确抛出异常。                                 |
+| **单元** | AuthService.sendEmailCode | Mock MailService + Prisma：验证码写入 DB、邮件发送调用、验证码格式校验（6位数字）。                                           |
+| **单元** | AuthService.emailRegister | 场景覆盖：①邮箱已注册→20010；②验证码错误→20012；③验证码过期→20013；④成功后 User 创建字段正确、JWT 返回。                      |
+| **单元** | AuthService.emailLogin    | 场景覆盖：①邮箱不存在→20011；②密码错误→20014；③登录成功→JWT 返回、bcrypt.compare 调用次数。                                   |
+| **E2E**  | AuthController            | 完整 HTTP 链路：发送验证码 → 注册 → 登录。验证限流头返回（`Retry-After`），验证 token 有效性（用拿到的 JWT 访问受保护接口）。 |
 
 ---
 
