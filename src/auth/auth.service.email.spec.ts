@@ -67,7 +67,27 @@ describe('AuthService - Email Methods', () => {
   });
 
   describe('sendEmailCode', () => {
+    it('should throw EMAIL_ALREADY_REGISTERED when email already exists', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'existing-user-id' });
+
+      await expect(service.sendEmailCode('existing@example.com')).rejects.toThrow(
+        BusinessException,
+      );
+
+      try {
+        await service.sendEmailCode('existing@example.com');
+      } catch (e) {
+        expect(e).toBeInstanceOf(BusinessException);
+        expect((e as BusinessException).code).toBe(ErrorCode.EMAIL_ALREADY_REGISTERED);
+      }
+
+      expect(prisma.emailVerificationCode.create).not.toHaveBeenCalled();
+      expect(mailService.sendVerificationCode).not.toHaveBeenCalled();
+    });
+
     it('should generate a 6-digit code and store it in DB with correct purpose and expiry', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
       const email = 'user@example.com';
       const before = Date.now();
 
@@ -99,6 +119,7 @@ describe('AuthService - Email Methods', () => {
     });
 
     it('should throw EMAIL_SEND_FAILED when mailService throws', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
       mailService.sendVerificationCode.mockRejectedValue(new Error('SMTP error'));
 
       await expect(service.sendEmailCode('user@example.com')).rejects.toThrow(

@@ -101,9 +101,16 @@ export class AuthService {
 
   /**
    * 发送邮箱验证码
-   * 生成6位随机数字，写入DB，通过 Resend 发送邮件
+   * 已注册邮箱直接报错；否则生成6位随机数字，写入DB并发送邮件
    */
   async sendEmailCode(email: string): Promise<void> {
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (existing) {
+      throw new BusinessException(ErrorCode.EMAIL_ALREADY_REGISTERED);
+    }
+
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     await this.prisma.emailVerificationCode.create({
