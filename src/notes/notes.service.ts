@@ -22,11 +22,11 @@ export class NotesService {
   ) {}
 
   /**
-   * 获取笔记列表（分页 + 筛选）
-   * @param userId - 可选，Phase 3 传入当前用户 ID；不传则用默认用户
+   * 获取笔记列表（分页 + 筛选 + view 维度）
+   * @param userId - 可选，传入当前用户 ID；不传则用默认用户
    */
   async findAll(query: QueryNoteDto, userId?: string) {
-    const { page = 1, size = 20, type, category, tag, keyword, mediaType } = query;
+    const { page = 1, size = 20, type, category, tag, keyword, mediaType, view } = query;
     const skip = (page - 1) * size;
     const uid = userId || DEFAULT_USER_ID;
 
@@ -49,13 +49,26 @@ export class NotesService {
     if (mediaType) {
       where.media = { some: { media: { type: mediaType as $Enums.MediaType } } };
     }
+    if (view === 'pinned') {
+      where.pinnedAt = { not: null };
+    }
+
+    const orderBy: Prisma.NoteOrderByWithRelationInput | Prisma.NoteOrderByWithRelationInput[] =
+      view === 'recent'
+        ? { createdAt: 'desc' }
+        : view === 'pinned'
+          ? { pinnedAt: 'desc' }
+          : [
+              { pinnedAt: { sort: 'desc', nulls: 'last' } },
+              { createdAt: 'desc' },
+            ];
 
     const [items, total] = await Promise.all([
       this.prisma.note.findMany({
         where,
         skip,
         take: size,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         include: {
           category: { select: { id: true, name: true } },
           tags: { include: { tag: { select: { id: true, name: true } } } },
@@ -245,6 +258,17 @@ export class NotesService {
     const newType =
       note.type === $Enums.NoteType.ARCHIVED ? $Enums.NoteType.PUBLISHED : $Enums.NoteType.ARCHIVED;
     return this.prisma.note.update({ where: { id }, data: { type: newType } });
+  }
+
+  /**
+   * 置顶 / 取消置顶笔记（toggle）
+   */
+  async pin(id: string, userId?: string) {
+    const note = await this.findById(id, userId);
+    return this.prisma.note.update({
+      where: { id },
+      data: { pinnedAt: note.pinnedAt ? null : new Date() },
+    });
   }
 
   /**
