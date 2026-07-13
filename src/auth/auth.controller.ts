@@ -17,6 +17,7 @@ import { LogoutResponseDto } from './dto/logout-response.dto';
 import { EmailSendCodeDto } from './dto/email-send-code.dto';
 import { EmailRegisterDto } from './dto/email-register.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
+import { EmailResetPasswordDto } from './dto/email-reset-password.dto';
 
 /**
  * 认证控制器
@@ -55,7 +56,7 @@ export class AuthController {
   @ApiResponse({ status: 200, description: '发送成功' })
   @ApiResponse({ status: 400, description: '参数校验失败' })
   async sendEmailCode(@Body() body: EmailSendCodeDto) {
-    return this.authService.sendEmailCode(body.email);
+    return this.authService.sendEmailCode(body.email, body.purpose);
   }
 
   /**
@@ -66,10 +67,24 @@ export class AuthController {
   @Post('email/register')
   @ApiOperation({ summary: '邮箱注册' })
   @ApiBody({ type: EmailRegisterDto })
-  @ApiResponse({ status: 200, type: TokenResponseDto })
+  @ApiResponse({ status: 200, description: '注册成功' })
   @ApiResponse({ status: 400, description: '参数校验失败' })
   async emailRegister(@Body() body: EmailRegisterDto) {
     return this.authService.emailRegister(body);
+  }
+
+  /**
+   * 邮箱重置密码
+   * POST /auth/email/reset-password
+   */
+  @Public()
+  @Post('email/reset-password')
+  @ApiOperation({ summary: '邮箱重置密码' })
+  @ApiBody({ type: EmailResetPasswordDto })
+  @ApiResponse({ status: 200, description: '重置成功' })
+  @ApiResponse({ status: 400, description: '参数校验失败' })
+  async emailResetPassword(@Body() body: EmailResetPasswordDto) {
+    return this.authService.emailResetPassword(body);
   }
 
   /**

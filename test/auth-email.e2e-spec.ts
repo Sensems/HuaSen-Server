@@ -63,7 +63,7 @@ describe('Auth Email E2E (e2e)', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/auth/email/send-code',
-        payload: { email: testEmail },
+        payload: { email: testEmail, purpose: 'register' },
       });
 
       const body = JSON.parse(response.payload);
@@ -75,7 +75,7 @@ describe('Auth Email E2E (e2e)', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/auth/email/send-code',
-        payload: { email: testEmail },
+        payload: { email: testEmail, purpose: 'register' },
       });
 
       const body = JSON.parse(response.payload);
@@ -105,7 +105,7 @@ describe('Auth Email E2E (e2e)', () => {
   /**
    * Test 3: 完整注册流程
    */
-  it('POST /auth/email/register full flow → success with tokens', async () => {
+  it('POST /auth/email/register full flow → success without tokens', async () => {
     // 从数据库读取 Test 1 发送的验证码（避免再次触发限流）
     const verification = await prisma.emailVerificationCode.findFirst({
       where: {
@@ -132,9 +132,7 @@ describe('Auth Email E2E (e2e)', () => {
     const body = JSON.parse(response.payload);
     expect(response.statusCode).toBe(201);
     expect(body.code).toBe(0);
-    expect(typeof body.data.accessToken).toBe('string');
-    expect(typeof body.data.refreshToken).toBe('string');
-    expect(body.data.expiresIn).toBe(7200);
+    expect(body.data).toBeNull();
   });
 
   /**

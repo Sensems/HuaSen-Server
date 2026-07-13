@@ -33,6 +33,7 @@ const mockPrismaService = {
   user: {
     findUnique: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
   },
   emailVerificationCode: {
     findFirst: jest.fn(),
@@ -70,12 +71,12 @@ describe('AuthService - Email Methods', () => {
     it('should throw EMAIL_ALREADY_REGISTERED when email already exists', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'existing-user-id' });
 
-      await expect(service.sendEmailCode('existing@example.com')).rejects.toThrow(
+      await expect(service.sendEmailCode('existing@example.com', 'register')).rejects.toThrow(
         BusinessException,
       );
 
       try {
-        await service.sendEmailCode('existing@example.com');
+        await service.sendEmailCode('existing@example.com', 'register');
       } catch (e) {
         expect(e).toBeInstanceOf(BusinessException);
         expect((e as BusinessException).code).toBe(ErrorCode.EMAIL_ALREADY_REGISTERED);
@@ -91,7 +92,7 @@ describe('AuthService - Email Methods', () => {
       const email = 'user@example.com';
       const before = Date.now();
 
-      await service.sendEmailCode(email);
+      await service.sendEmailCode(email, 'register');
 
       const after = Date.now();
 
@@ -115,19 +116,19 @@ describe('AuthService - Email Methods', () => {
       expect(expiresAt.getTime()).toBeLessThanOrEqual(after + 10 * 60 * 1000 + 1000);
 
       // 3. Verify mailService.sendVerificationCode called with correct args
-      expect(mailService.sendVerificationCode).toHaveBeenCalledWith(email, code);
+      expect(mailService.sendVerificationCode).toHaveBeenCalledWith(email, code, 'register');
     });
 
     it('should throw EMAIL_SEND_FAILED when mailService throws', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       mailService.sendVerificationCode.mockRejectedValue(new Error('SMTP error'));
 
-      await expect(service.sendEmailCode('user@example.com')).rejects.toThrow(
+      await expect(service.sendEmailCode('user@example.com', 'register')).rejects.toThrow(
         BusinessException,
       );
 
       try {
-        await service.sendEmailCode('user@example.com');
+        await service.sendEmailCode('user@example.com', 'register');
       } catch (e) {
         expect(e).toBeInstanceOf(BusinessException);
         expect((e as BusinessException).code).toBe(ErrorCode.EMAIL_SEND_FAILED);
@@ -252,17 +253,11 @@ describe('AuthService - Email Methods', () => {
           bindingCode: expect.any(String),
           role: 'USER',
         },
-        select: { id: true, email: true },
       });
 
-      // Verify JWT tokens returned
-      expect(result).toEqual({
-        accessToken: 'fake-token',
-        refreshToken: 'fake-token',
-        expiresIn: 7200,
-      });
-
-      expect(jwtService.sign).toHaveBeenCalledTimes(2);
+      // 注册成功不签发 JWT
+      expect(result).toBeUndefined();
+      expect(jwtService.sign).not.toHaveBeenCalled();
     });
   });
 

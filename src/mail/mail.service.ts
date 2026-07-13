@@ -14,8 +14,13 @@ export class MailService {
    * 发送邮箱验证码
    * @param email 目标邮箱
    * @param code 6位验证码
+   * @param purpose 用途：register 注册 / reset_password 重置密码
    */
-  async sendVerificationCode(email: string, code: string): Promise<void> {
+  async sendVerificationCode(
+    email: string,
+    code: string,
+    purpose: "register" | "reset_password" = "register",
+  ): Promise<void> {
     const transporter = nodemailer.createTransport({
       host: this.configService.get<string>("email.smtpHost"),
       port: this.configService.get<number>("email.smtpPort", 465),
@@ -29,6 +34,10 @@ export class MailService {
     const from = this.configService.get<string>("email.from") || "";
     const supportEmail = this.resolveSupportEmail(from);
     const spacedCode = code.split("").join(" ");
+    const intro =
+      purpose === "reset_password"
+        ? "你正在重置花森笔记账号密码。请使用以下验证码完成验证："
+        : "你正在使用此邮箱注册花森笔记账号。请使用以下验证码完成验证：";
 
     await transporter.sendMail({
       from,
@@ -45,7 +54,7 @@ export class MailService {
     </div>
 
     <p style="margin:0 0 8px;font-size:15px;color:#1a1a1a;">你好，</p>
-    <p style="margin:0 0 28px;font-size:15px;color:#1a1a1a;">你正在使用此邮箱注册花森笔记账号。请使用以下验证码完成验证：</p>
+    <p style="margin:0 0 28px;font-size:15px;color:#1a1a1a;">${intro}</p>
 
     <div style="background:#F5F5F5;border-radius:12px;padding:28px 24px;text-align:center;margin-bottom:20px;">
       <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#9a9a9a;margin-bottom:12px;">VERIFICATION CODE</div>

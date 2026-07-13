@@ -5,3 +5,11 @@ allowBuilds:
   msgpackr-extract: true
   prisma: true
   unrs-resolver: true
+
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - '@scarf/scarf'
+  - bcrypt
+  - msgpackr-extract
+  - prisma
+  - unrs-resolver

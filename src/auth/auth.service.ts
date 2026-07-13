@@ -9,6 +9,8 @@ import axios from 'axios';
 import { MailService } from '../mail/mail.service';
 import { EmailRegisterDto } from './dto/email-register.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
+import { EmailResetPasswordDto } from './dto/email-reset-password.dto';
+import { EmailCodePurpose } from './dto/email-send-code.dto';
 import bcrypt from 'bcrypt';
 
 /** 微信 OAuth access_token 响应 */
@@ -101,14 +103,18 @@ export class AuthService {
 
   /**
    * 发送邮箱验证码
-   * 已注册邮箱直接报错；否则生成6位随机数字，写入DB并发送邮件
+   * register：已注册则报错；reset_password：未注册则报错；否则写库并发信
    */
-  async sendEmailCode(email: string): Promise<void> {
+  async sendEmailCode(email: string, purpose: EmailCodePurpose): Promise<void> {
     const existing = await this.prisma.user.findUnique({
       where: { email },
     });
-    if (existing) {
+
+    if (purpose === 'register' && existing) {
       throw new BusinessException(ErrorCode.EMAIL_ALREADY_REGISTERED);
+    }
+    if (purpose === 'reset_password' && !existing) {
+      throw new BusinessException(ErrorCode.EMAIL_NOT_FOUND);
     }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -117,13 +123,13 @@ export class AuthService {
       data: {
         email,
         code,
-        purpose: 'register',
+        purpose,
         expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       },
     });
 
     try {
-      await this.mailService.sendVerificationCode(email, code);
+      await this.mailService.sendVerificationCode(email, code, purpose);
     } catch (error) {
       throw new BusinessException(
         ErrorCode.EMAIL_SEND_FAILED,
@@ -151,9 +157,9 @@ export class AuthService {
 
   /**
    * 邮箱注册
-   * 校验邮箱唯一性 → 校验验证码 → 标记已用 → 哈希密码 → 创建用户 → 返回JWT
+   * 校验邮箱唯一性 → 校验验证码 → 标记已用 → 哈希密码 → 创建用户（不签发 JWT）
    */
-  async emailRegister(dto: EmailRegisterDto) {
+  async emailRegister(dto: EmailRegisterDto): Promise<void> {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -196,17 +202,66 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const bindingCode = await this.generateBindingCode();
 
-    const user = await this.prisma.user.create({
+    await this.prisma.user.create({
       data: {
         email: dto.email,
         passwordHash,
         bindingCode,
         role: 'USER',
       },
-      select: { id: true, email: true },
+    });
+  }
+
+  /**
+   * 邮箱重置密码
+   * 校验邮箱存在 → 校验验证码 → 标记已用 → 更新密码哈希（不签发 JWT）
+   */
+  async emailResetPassword(dto: EmailResetPasswordDto): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new BusinessException(ErrorCode.EMAIL_NOT_FOUND);
+    }
+
+    const verification = await this.prisma.emailVerificationCode.findFirst({
+      where: {
+        email: dto.email,
+        code: dto.code,
+        purpose: 'reset_password',
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
     });
 
-    return this.generateTokens(user.id, undefined, user.email || undefined);
+    if (!verification) {
+      const anyForEmail = await this.prisma.emailVerificationCode.findFirst({
+        where: {
+          email: dto.email,
+          code: dto.code,
+          purpose: 'reset_password',
+          usedAt: null,
+        },
+      });
+      throw new BusinessException(
+        anyForEmail
+          ? ErrorCode.VERIFICATION_CODE_EXPIRED
+          : ErrorCode.VERIFICATION_CODE_INVALID,
+      );
+    }
+
+    await this.prisma.emailVerificationCode.update({
+      where: { id: verification.id },
+      data: { usedAt: new Date() },
+    });
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
   }
 
   /**
