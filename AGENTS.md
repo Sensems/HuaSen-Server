@@ -77,9 +77,12 @@ npm run test:e2e             # E2E 测试（需要 PostgreSQL + Redis）
 ## Learned User Preferences
 
 - When adapting external UI or email design references, keep the product brand「花森笔记」and only reuse layout/colors—do not copy third-party brand names.
+- For new features, prefer a short design brainstorm with explicit options and user approval before writing code.
+- For password-reset send-code on unknown emails, prefer explicit `EMAIL_NOT_FOUND` over silent success.
 
 ## Learned Workspace Facts
 
 - Package manager is pnpm; after `pnpm install`, run `pnpm exec prisma generate`. Under pnpm, Prisma Client needs `.npmrc` public-hoist-pattern entries for `*prisma*` and `*@prisma*` or `@prisma/client` fails to resolve.
 - Nest dev server defaults to port 3000; Swagger UI is at `/api/docs`.
 - Email sending lives in `src/mail/` (nodemailer SMTP); verification emails use「花森笔记」branding with a coral accent and a large spaced verification code.
+- Email auth: `POST /auth/email/send-code` requires `purpose` (`register` | `reset_password`); `POST /auth/email/reset-password` takes email + code + password (field name `password`), returns success without JWT; unknown email → `EMAIL_NOT_FOUND`.
