@@ -128,6 +128,21 @@ export class NotesController {
     return this.notesService.archive(body.id);
   }
 
+  @Post('pin')
+  @ApiOperation({ summary: '置顶或取消置顶笔记' })
+  @ApiBody({
+    type: IdDto,
+    examples: {
+      示例: {
+        value: { id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: '成功切换置顶状态，data: 更新后的笔记对象（含 pinnedAt）', type: Object })
+  async pin(@Body() body: IdDto, @CurrentUser() user: CurrentUserInfo) {
+    return this.notesService.pin(body.id, user?.id);
+  }
+
   @Get('media')
   @ApiOperation({ summary: '获取笔记关联的多媒体列表' })
   @ApiQuery({ name: 'note_id', description: '笔记 ID', example: 'clxyz1234567890abcdef' })
