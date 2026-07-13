@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsEnum, IsOptional, IsString } from "class-validator";
+import { IsEnum, IsIn, IsOptional, IsString } from "class-validator";
 import { MediaType, $Enums } from "@prisma/client";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 
@@ -55,4 +55,14 @@ export class QueryNoteDto extends PaginationDto {
   @IsOptional()
   @IsEnum($Enums.MediaType)
   mediaType?: $Enums.MediaType;
+
+  @ApiProperty({
+    description: "列表视图：pinned=仅置顶；recent=按创建时间近→远；不传=默认（置顶优先）",
+    required: false,
+    enum: ["pinned", "recent"],
+    example: "pinned",
+  })
+  @IsOptional()
+  @IsIn(["pinned", "recent"])
+  view?: "pinned" | "recent";
 }
