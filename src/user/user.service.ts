@@ -8,6 +8,13 @@ import { $Enums } from '@prisma/client';
  */
 export const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
 
+export type WechatResolvedUser = {
+  id: string;
+  email: string | null;
+  bindingCode: string | null;
+  wxOpenid: string | null;
+};
+
 /**
  * 用户服务
  * 提供用户查询、微信 openid 绑定等功能
@@ -26,36 +33,60 @@ export class UserService {
   }
 
   /**
-   * 根据微信 openid 查找或创建用户
-   * 用于微信消息处理链路：每次收到消息时自动关联到真实用户
-   * @param wxOpenid - 微信用户唯一标识（FromUserName）
-   * @returns 用户 ID（如果 openid 为空，返回默认用户 ID）
+   * 生成唯一绑定码（6 位大写字母数字，排除易混字符）
    */
-  async findOrCreateByWechat(wxOpenid: string): Promise<{ id: string }> {
+  async generateBindingCode(): Promise<string> {
+    const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = Array.from({ length: 6 }, () =>
+        CHARS[Math.floor(Math.random() * CHARS.length)],
+      ).join('');
+      const existing = await this.prisma.user.findUnique({
+        where: { bindingCode: code },
+      });
+      if (!existing) return code;
+    }
+    throw new Error('Failed to generate unique binding code');
+  }
+
+  /**
+   * 根据微信 openid 查找或创建空壳用户；存量无码则补生成
+   */
+  async findOrCreateByWechat(wxOpenid: string): Promise<WechatResolvedUser> {
     if (!wxOpenid) {
-      return { id: DEFAULT_USER_ID };
+      return {
+        id: DEFAULT_USER_ID,
+        email: null,
+        bindingCode: null,
+        wxOpenid: null,
+      };
     }
 
-    // 查找已有用户
     const existing = await this.prisma.user.findUnique({
       where: { wxOpenid },
-      select: { id: true },
+      select: { id: true, email: true, bindingCode: true, wxOpenid: true },
     });
 
     if (existing) {
+      if (!existing.bindingCode && !existing.email) {
+        const bindingCode = await this.generateBindingCode();
+        return this.prisma.user.update({
+          where: { id: existing.id },
+          data: { bindingCode },
+          select: { id: true, email: true, bindingCode: true, wxOpenid: true },
+        });
+      }
       return existing;
     }
 
-    // 创建新用户（普通用户角色，非管理员）
-    const user = await this.prisma.user.create({
+    const bindingCode = await this.generateBindingCode();
+    return this.prisma.user.create({
       data: {
         wxOpenid,
+        bindingCode,
         role: $Enums.UserRole.USER,
       },
-      select: { id: true },
+      select: { id: true, email: true, bindingCode: true, wxOpenid: true },
     });
-
-    console.log(`[UserService] Created new user for openid: ${wxOpenid.slice(0, 8)}...`);
-    return user;
   }
 }
