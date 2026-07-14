@@ -20,7 +20,7 @@ src/
 ├── categories/          # 分类树 + 拖拽排序 → see categories/AGENTS.md
 ├── tags/                # 标签 upsert → see tags/AGENTS.md
 ├── media/               # 媒体生命周期管理 → see media/AGENTS.md
-├── user/                # 用户服务
+├── user/                # 用户资料 + 微信绑定 → see user/AGENTS.md
 ├── config/              # 配置（NestJS ConfigService）
 ├── prisma/              # PrismaService（@Global）
 ├── queue/               # BullMQ 队列配置 → see queue/AGENTS.md
@@ -34,6 +34,7 @@ src/
 | 添加新 API    | 对应 domain 的 controller.ts                                                    | GET-only 读取，POST-only 写入 |
 | 修改数据模型  | `prisma/schema.prisma` → `npx prisma migrate dev`                               |
 | 添加认证      | `auth/guards/jwt-auth.guard.ts`，用 `@Public()` 豁免                            |
+| 用户资料/绑定 | `src/user` → see `user/AGENTS.md`                                               | profile / update / bind       |
 | 微信消息处理  | `wechat/wechat.service.ts` → `queue/processors/wechat-message.processor.ts`     |
 | 媒体上传/关联 | `storage/storage.service.ts`（七牛云）→ `media/media.service.ts`（DB 生命周期） |
 | 队列/异步任务 | `queue/queue.module.ts` → `queue/processors/`                                   |
@@ -79,6 +80,7 @@ npm run test:e2e             # E2E 测试（需要 PostgreSQL + Redis）
 - When adapting external UI or email design references, keep the product brand「花森笔记」and only reuse layout/colors—do not copy third-party brand names.
 - For new features, prefer a short design brainstorm with explicit options and user approval before writing code.
 - For password-reset send-code on unknown emails, prefer explicit `EMAIL_NOT_FOUND` over silent success.
+- Prefer implementing directly in the current repo; decline git worktrees when offered for isolation.
 
 ## Learned Workspace Facts
 
@@ -86,3 +88,4 @@ npm run test:e2e             # E2E 测试（需要 PostgreSQL + Redis）
 - Nest dev server defaults to port 3000; Swagger UI is at `/api/docs`.
 - Email sending lives in `src/mail/` (nodemailer SMTP); verification emails use「花森笔记」branding with a coral accent and a large spaced verification code.
 - Email auth: `POST /auth/email/send-code` requires `purpose` (`register` | `reset_password`); `POST /auth/email/reset-password` takes email + code + password (field name `password`), returns success without JWT; unknown email → `EMAIL_NOT_FOUND`.
+- Note pin: `Note.pinnedAt` (`DateTime?`); `POST /notes/pin` toggles; `GET /notes` optional `view=pinned|recent` (default: pinned first by `pinnedAt`, then `createdAt`; `pinned` = only pinned; `recent` = `createdAt` only). Do not set `pinnedAt` via `update`.
