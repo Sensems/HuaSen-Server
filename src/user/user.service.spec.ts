@@ -61,7 +61,14 @@ describe('UserService', () => {
       const user = await service.findOrCreateByWechat('oid');
       expect(user.id).toBe('shell-1');
       expect(user.bindingCode).toBeTruthy();
-      expect(prisma.user.create).toHaveBeenCalled();
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            bindingCode: expect.any(String),
+            wxOpenid: 'oid',
+          }),
+        }),
+      );
     });
 
     it('backfills bindingCode when existing shell has none', async () => {
