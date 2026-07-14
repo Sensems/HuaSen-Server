@@ -51,6 +51,8 @@ export class WechatMessageProcessor extends WorkerHost {
 
   /**
    * 处理队列中的微信消息 Job
+   * findOrCreateByWechat 可能返回含 email/bindingCode 的完整用户，此处仅用 id 归属笔记；
+   * 绑定引导由被动回复完成，客服消息只发笔记创建确认。
    * @param job - BullMQ Job 对象，包含微信消息数据
    * @returns 处理结果（创建的笔记或 null）
    */
@@ -58,7 +60,7 @@ export class WechatMessageProcessor extends WorkerHost {
     const data = job.data;
     console.log(`[WechatProcessor] Processing job: msgId=${data.msgId}, type=${data.msgType}, attempt=${job.attemptsMade + 1}`);
 
-    // 根据 openid 查找或创建用户
+    // 根据 openid 查找或创建用户（返回 WechatResolvedUser，仅用 id）
     const user = await this.userService.findOrCreateByWechat(data.fromUserName);
     const userId = user.id;
     console.log(`[WechatProcessor] User resolved: ${userId === DEFAULT_USER_ID ? 'DEFAULT' : userId.slice(0, 8)}...`);
