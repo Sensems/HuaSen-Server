@@ -22,6 +22,7 @@ export enum ErrorCode {
   VERIFICATION_CODE_EXPIRED  = 20013,
   PASSWORD_INCORRECT         = 20014,
   EMAIL_SEND_FAILED          = 20015,
+  BINDING_CODE_INVALID       = 20016,
 
   // 笔记错误 3xxxx
   NOTE_NOT_FOUND = 30001,
@@ -61,6 +62,7 @@ export const ErrorMessage: Record<number, string> = {
   [ErrorCode.VERIFICATION_CODE_EXPIRED]: '验证码已过期，请重新获取',
   [ErrorCode.PASSWORD_INCORRECT]: '密码错误',
   [ErrorCode.EMAIL_SEND_FAILED]: '邮件发送失败，请稍后重试',
+  [ErrorCode.BINDING_CODE_INVALID]: '绑定码无效',
   [ErrorCode.NOTE_NOT_FOUND]: '笔记不存在',
   [ErrorCode.NOTE_DELETED]: '笔记已删除',
   [ErrorCode.NOTE_INVALID_OPERATION]: '不允许的操作',
