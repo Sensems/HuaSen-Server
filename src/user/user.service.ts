@@ -232,86 +232,107 @@ export class UserService {
   }): Promise<BindResult> {
     const { appUserId, wxOpenid, shellUserId } = params;
 
-    return this.prisma.$transaction(async (tx) => {
-      const appUser = await tx.user.findUnique({
-        where: { id: appUserId },
-        select: { id: true, email: true, wxOpenid: true },
-      });
-      if (!appUser?.email) {
-        throw new BusinessException(ErrorCode.BAD_REQUEST, '目标账号未完成 App 注册');
-      }
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const appUser = await tx.user.findUnique({
+          where: { id: appUserId },
+          select: { id: true, email: true, wxOpenid: true },
+        });
+        if (!appUser?.email) {
+          throw new BusinessException(ErrorCode.BAD_REQUEST, '目标账号未完成 App 注册');
+        }
 
-      // 幂等：已是该绑定
-      if (appUser.wxOpenid === wxOpenid) {
-        return {
-          wxBound: true as const,
-          syncedDraftCount: 0,
-          overwritten: false,
-          message: '已绑定',
-        };
-      }
+        // 幂等：已是该绑定
+        if (appUser.wxOpenid === wxOpenid) {
+          return {
+            wxBound: true as const,
+            syncedDraftCount: 0,
+            overwritten: false,
+            message: '已绑定',
+          };
+        }
 
-      let overwritten = false;
+        let overwritten = false;
 
-      // openid 已挂在其他用户上
-      const holder = await tx.user.findUnique({
-        where: { wxOpenid },
-        select: { id: true, email: true },
-      });
-      if (holder && holder.id !== appUserId && holder.id !== shellUserId) {
-        if (holder.email) {
-          await tx.user.update({
-            where: { id: holder.id },
-            data: { wxOpenid: null },
-          });
+        // openid 已挂在其他用户上
+        const holder = await tx.user.findUnique({
+          where: { wxOpenid },
+          select: { id: true, email: true },
+        });
+        if (holder && holder.id !== appUserId && holder.id !== shellUserId) {
+          if (holder.email) {
+            await tx.user.update({
+              where: { id: holder.id },
+              data: { wxOpenid: null },
+            });
+            overwritten = true;
+          }
+        }
+
+        // 显式空壳，或占用 openid 的无 email 孤儿空壳，统一走迁移删除
+        const effectiveShellId =
+          shellUserId ??
+          (holder && !holder.email && holder.id !== appUserId
+            ? holder.id
+            : undefined);
+
+        // App 用户已绑其他微信 → 换绑
+        if (appUser.wxOpenid && appUser.wxOpenid !== wxOpenid) {
           overwritten = true;
         }
-      }
 
-      // App 用户已绑其他微信 → 换绑
-      if (appUser.wxOpenid && appUser.wxOpenid !== wxOpenid) {
-        overwritten = true;
-      }
+        let syncedDraftCount = 0;
+        if (effectiveShellId && effectiveShellId !== appUserId) {
+          syncedDraftCount = await tx.note.count({
+            where: { userId: effectiveShellId, deletedAt: null },
+          });
+          await tx.note.updateMany({
+            where: { userId: effectiveShellId },
+            data: { userId: appUserId, categoryId: null },
+          });
+          await tx.media.updateMany({
+            where: { userId: effectiveShellId },
+            data: { userId: appUserId },
+          });
+          await tx.category.deleteMany({ where: { userId: effectiveShellId } });
+          // 先解开 openid unique，再删空壳
+          await tx.user.update({
+            where: { id: effectiveShellId },
+            data: { wxOpenid: null, bindingCode: null },
+          });
+          await tx.user.delete({ where: { id: effectiveShellId } });
+        }
 
-      let syncedDraftCount = 0;
-      if (shellUserId && shellUserId !== appUserId) {
-        syncedDraftCount = await tx.note.count({
-          where: { userId: shellUserId, deletedAt: null },
-        });
-        await tx.note.updateMany({
-          where: { userId: shellUserId },
-          data: { userId: appUserId, categoryId: null },
-        });
-        await tx.media.updateMany({
-          where: { userId: shellUserId },
-          data: { userId: appUserId },
-        });
-        await tx.category.deleteMany({ where: { userId: shellUserId } });
-        // 先解开 openid unique，再删空壳
         await tx.user.update({
-          where: { id: shellUserId },
-          data: { wxOpenid: null, bindingCode: null },
+          where: { id: appUserId },
+          data: { wxOpenid },
         });
-        await tx.user.delete({ where: { id: shellUserId } });
-      }
 
-      await tx.user.update({
-        where: { id: appUserId },
-        data: { wxOpenid },
+        const message = overwritten
+          ? '绑定成功，已覆盖原有微信绑定'
+          : syncedDraftCount > 0
+            ? `绑定成功，已同步 ${syncedDraftCount} 条笔记`
+            : '绑定成功';
+
+        return {
+          wxBound: true as const,
+          syncedDraftCount,
+          overwritten,
+          message,
+        };
       });
-
-      const message = overwritten
-        ? '绑定成功，已覆盖原有微信绑定'
-        : syncedDraftCount > 0
-          ? `绑定成功，已同步 ${syncedDraftCount} 条笔记`
-          : '绑定成功';
-
-      return {
-        wxBound: true as const,
-        syncedDraftCount,
-        overwritten,
-        message,
-      };
-    });
+    } catch (error) {
+      if (error instanceof BusinessException) {
+        throw error;
+      }
+      const prismaCode = (error as { code?: string })?.code;
+      if (prismaCode === 'P2002' || prismaCode === 'P2025') {
+        throw new BusinessException(
+          ErrorCode.BINDING_CODE_INVALID,
+          '绑定失败，请稍后重试',
+        );
+      }
+      throw error;
+    }
   }
 }

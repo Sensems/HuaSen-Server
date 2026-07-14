@@ -218,4 +218,54 @@ describe('UserService', () => {
       expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: 'shell-1' } });
     });
   });
+
+  describe('mergeWechatToAppUser', () => {
+    it('migrates orphan shell holding openid when shellUserId omitted', async () => {
+      prisma.$transaction.mockImplementation(async (fn) => fn(prisma));
+      prisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'app-1',
+          email: 'a@b.com',
+          wxOpenid: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'orphan-shell',
+          email: null,
+        });
+      prisma.note.count.mockResolvedValue(1);
+      prisma.note.updateMany.mockResolvedValue({ count: 1 });
+      prisma.media.updateMany.mockResolvedValue({ count: 0 });
+      prisma.category.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.user.update.mockResolvedValue({});
+      prisma.user.delete.mockResolvedValue({});
+
+      const result = await service.mergeWechatToAppUser({
+        appUserId: 'app-1',
+        wxOpenid: 'oid-orphan',
+      });
+
+      expect(result.syncedDraftCount).toBe(1);
+      expect(prisma.note.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'orphan-shell' },
+        data: { userId: 'app-1', categoryId: null },
+      });
+      expect(prisma.user.delete).toHaveBeenCalledWith({
+        where: { id: 'orphan-shell' },
+      });
+    });
+
+    it('maps Prisma P2002 to BINDING_CODE_INVALID', async () => {
+      prisma.$transaction.mockRejectedValue({ code: 'P2002' });
+
+      await expect(
+        service.mergeWechatToAppUser({
+          appUserId: 'app-1',
+          wxOpenid: 'oid',
+        }),
+      ).rejects.toMatchObject({
+        code: 20016,
+        message: '绑定失败，请稍后重试',
+      });
+    });
+  });
 });
