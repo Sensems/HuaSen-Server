@@ -7,6 +7,7 @@ import { ErrorCode } from '../common/constants/error-codes';
 import { JwtPayload } from './strategies/jwt.strategy';
 import axios from 'axios';
 import { MailService } from '../mail/mail.service';
+import { UserService } from '../user/user.service';
 import { EmailRegisterDto } from './dto/email-register.dto';
 import { EmailLoginDto } from './dto/email-login.dto';
 import { EmailResetPasswordDto } from './dto/email-reset-password.dto';
@@ -45,6 +46,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly userService: UserService,
   ) {}
 
   /**
@@ -139,23 +141,6 @@ export class AuthService {
   }
 
   /**
-   * 生成唯一绑定码（6位大写字母数字）
-   */
-  private async generateBindingCode(): Promise<string> {
-    const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const code = Array.from({ length: 6 }, () =>
-        CHARS[Math.floor(Math.random() * CHARS.length)],
-      ).join('');
-      const existing = await this.prisma.user.findUnique({
-        where: { bindingCode: code },
-      });
-      if (!existing) return code;
-    }
-    throw new Error('Failed to generate unique binding code');
-  }
-
-  /**
    * 邮箱注册
    * 校验邮箱唯一性 → 校验验证码 → 标记已用 → 哈希密码 → 创建用户（不签发 JWT）
    */
@@ -200,7 +185,7 @@ export class AuthService {
     });
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    const bindingCode = await this.generateBindingCode();
+    const bindingCode = await this.userService.generateBindingCode();
 
     await this.prisma.user.create({
       data: {

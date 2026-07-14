@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { UserService } from '../user/user.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/constants/error-codes';
 import { EmailRegisterDto } from './dto/email-register.dto';
@@ -29,6 +30,10 @@ const mockMailService = {
   sendVerificationCode: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockUserService = {
+  generateBindingCode: jest.fn().mockResolvedValue('TEST12'),
+};
+
 const mockPrismaService = {
   user: {
     findUnique: jest.fn(),
@@ -47,6 +52,7 @@ describe('AuthService - Email Methods', () => {
   let prisma: typeof mockPrismaService;
   let mailService: typeof mockMailService;
   let jwtService: typeof mockJwtService;
+  let userService: typeof mockUserService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -58,6 +64,7 @@ describe('AuthService - Email Methods', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: MailService, useValue: mockMailService },
+        { provide: UserService, useValue: mockUserService },
       ],
     }).compile();
 
@@ -65,6 +72,7 @@ describe('AuthService - Email Methods', () => {
     prisma = module.get(PrismaService);
     mailService = module.get(MailService);
     jwtService = module.get(JwtService);
+    userService = module.get(UserService);
   });
 
   describe('sendEmailCode', () => {
@@ -223,8 +231,6 @@ describe('AuthService - Email Methods', () => {
       });
       prisma.emailVerificationCode.update.mockResolvedValue({ id: 'code-id', usedAt: new Date() });
       prisma.user.create.mockResolvedValue({ id: 'new-user-id', email: 'new@example.com' });
-      // For generateBindingCode uniqueness check — no collision
-      prisma.user.findUnique.mockResolvedValueOnce(null);
 
       const { hash } = await import('bcrypt');
 
@@ -245,12 +251,15 @@ describe('AuthService - Email Methods', () => {
       // Verify password hashed
       expect(hash).toHaveBeenCalledWith(dto.password, 10);
 
+      // Verify binding code from UserService
+      expect(userService.generateBindingCode).toHaveBeenCalled();
+
       // Verify user created with correct fields
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: {
           email: dto.email,
           passwordHash: 'hashed-password',
-          bindingCode: expect.any(String),
+          bindingCode: 'TEST12',
           role: 'USER',
         },
       });
@@ -331,45 +340,6 @@ describe('AuthService - Email Methods', () => {
         expiresIn: 7200,
       });
       expect(jwtService.sign).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  describe('generateBindingCode', () => {
-    it('should generate a 6-character code using only allowed characters', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-
-      // Access private method via any
-      const code = await (service as any).generateBindingCode();
-
-      expect(code).toHaveLength(6);
-      expect(code).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/);
-    });
-
-    it('should retry and check uniqueness when collision occurs', async () => {
-      // First two attempts collide, third succeeds
-      prisma.user.findUnique
-        .mockResolvedValueOnce({ id: 'existing-1' }) // collision
-        .mockResolvedValueOnce({ id: 'existing-2' }) // collision
-        .mockResolvedValueOnce(null); // success
-
-      const code = await (service as any).generateBindingCode();
-
-      expect(code).toHaveLength(6);
-      expect(prisma.user.findUnique).toHaveBeenCalledTimes(3);
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { bindingCode: expect.any(String) },
-      });
-    });
-
-    it('should throw error after 5 failed attempts', async () => {
-      // All 5 attempts collide
-      prisma.user.findUnique.mockResolvedValue({ id: 'existing' });
-
-      await expect((service as any).generateBindingCode()).rejects.toThrow(
-        'Failed to generate unique binding code',
-      );
-
-      expect(prisma.user.findUnique).toHaveBeenCalledTimes(5);
     });
   });
 });
