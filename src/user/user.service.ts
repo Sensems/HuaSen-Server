@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { $Enums } from '@prisma/client';
+import { BusinessException } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/constants/error-codes';
 
 /**
  * Phase 1 默认用户 UUID（与 seed 脚本一致）
@@ -13,6 +15,22 @@ export type WechatResolvedUser = {
   email: string | null;
   bindingCode: string | null;
   wxOpenid: string | null;
+};
+
+export type UserProfile = {
+  id: string;
+  nickname: string | null;
+  avatar: string | null;
+  email: string | null;
+  bindingCode: string | null;
+  wxBound: boolean;
+};
+
+export type BindResult = {
+  wxBound: true;
+  syncedDraftCount: number;
+  overwritten: boolean;
+  message: string;
 };
 
 /**
@@ -87,6 +105,213 @@ export class UserService {
         role: $Enums.UserRole.USER,
       },
       select: { id: true, email: true, bindingCode: true, wxOpenid: true },
+    });
+  }
+
+  /**
+   * 获取当前用户资料
+   */
+  async getProfile(userId: string): Promise<UserProfile> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        nickname: true,
+        avatar: true,
+        email: true,
+        bindingCode: true,
+        wxOpenid: true,
+      },
+    });
+    if (!user) {
+      throw new BusinessException(ErrorCode.NOT_FOUND, '用户不存在');
+    }
+    return {
+      id: user.id,
+      nickname: user.nickname,
+      avatar: user.avatar,
+      email: user.email,
+      bindingCode: user.bindingCode,
+      wxBound: user.wxOpenid != null,
+    };
+  }
+
+  /**
+   * 更新昵称和/或头像 URL
+   */
+  async updateProfile(
+    userId: string,
+    data: { nickname?: string; avatar?: string },
+  ): Promise<UserProfile> {
+    const payload: { nickname?: string; avatar?: string } = {};
+    if (data.nickname !== undefined) payload.nickname = data.nickname;
+    if (data.avatar !== undefined) payload.avatar = data.avatar;
+    if (Object.keys(payload).length === 0) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少提供 nickname 或 avatar');
+    }
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: payload,
+      select: {
+        id: true,
+        nickname: true,
+        avatar: true,
+        email: true,
+        bindingCode: true,
+        wxOpenid: true,
+      },
+    });
+    return {
+      id: user.id,
+      nickname: user.nickname,
+      avatar: user.avatar,
+      email: user.email,
+      bindingCode: user.bindingCode,
+      wxBound: user.wxOpenid != null,
+    };
+  }
+
+  /**
+   * 规范化绑定码（trim + 大写）
+   */
+  normalizeBindingCode(raw: string): string {
+    return raw.trim().toUpperCase();
+  }
+
+  /**
+   * App 端：用微信空壳绑定码合并到当前登录用户
+   */
+  async bindByShellCode(appUserId: string, rawCode: string): Promise<BindResult> {
+    const code = this.normalizeBindingCode(rawCode);
+    const shell = await this.prisma.user.findUnique({
+      where: { bindingCode: code },
+      select: { id: true, email: true, wxOpenid: true, bindingCode: true },
+    });
+    if (!shell || shell.email || !shell.wxOpenid) {
+      throw new BusinessException(ErrorCode.BINDING_CODE_INVALID);
+    }
+    return this.mergeWechatToAppUser({
+      appUserId,
+      wxOpenid: shell.wxOpenid,
+      shellUserId: shell.id,
+    });
+  }
+
+  /**
+   * 微信端：用户发送 App 注册绑定码，将当前 openid 绑到该 App 用户
+   */
+  async bindOpenidToAppByCode(wxOpenid: string, rawCode: string): Promise<BindResult> {
+    const code = this.normalizeBindingCode(rawCode);
+    const appUser = await this.prisma.user.findUnique({
+      where: { bindingCode: code },
+      select: { id: true, email: true, wxOpenid: true },
+    });
+    if (!appUser || !appUser.email) {
+      throw new BusinessException(ErrorCode.BINDING_CODE_INVALID);
+    }
+    const shell = await this.prisma.user.findUnique({
+      where: { wxOpenid },
+      select: { id: true, email: true },
+    });
+    const shellUserId =
+      shell && !shell.email && shell.id !== appUser.id ? shell.id : undefined;
+    return this.mergeWechatToAppUser({
+      appUserId: appUser.id,
+      wxOpenid,
+      shellUserId,
+    });
+  }
+
+  /**
+   * 将 wxOpenid 绑定到 App 用户；可选迁移空壳 notes/media，笔记 categoryId 置空
+   */
+  async mergeWechatToAppUser(params: {
+    appUserId: string;
+    wxOpenid: string;
+    shellUserId?: string;
+  }): Promise<BindResult> {
+    const { appUserId, wxOpenid, shellUserId } = params;
+
+    return this.prisma.$transaction(async (tx) => {
+      const appUser = await tx.user.findUnique({
+        where: { id: appUserId },
+        select: { id: true, email: true, wxOpenid: true },
+      });
+      if (!appUser?.email) {
+        throw new BusinessException(ErrorCode.BAD_REQUEST, '目标账号未完成 App 注册');
+      }
+
+      // 幂等：已是该绑定
+      if (appUser.wxOpenid === wxOpenid) {
+        return {
+          wxBound: true as const,
+          syncedDraftCount: 0,
+          overwritten: false,
+          message: '已绑定',
+        };
+      }
+
+      let overwritten = false;
+
+      // openid 已挂在其他用户上
+      const holder = await tx.user.findUnique({
+        where: { wxOpenid },
+        select: { id: true, email: true },
+      });
+      if (holder && holder.id !== appUserId && holder.id !== shellUserId) {
+        if (holder.email) {
+          await tx.user.update({
+            where: { id: holder.id },
+            data: { wxOpenid: null },
+          });
+          overwritten = true;
+        }
+      }
+
+      // App 用户已绑其他微信 → 换绑
+      if (appUser.wxOpenid && appUser.wxOpenid !== wxOpenid) {
+        overwritten = true;
+      }
+
+      let syncedDraftCount = 0;
+      if (shellUserId && shellUserId !== appUserId) {
+        syncedDraftCount = await tx.note.count({
+          where: { userId: shellUserId, deletedAt: null },
+        });
+        await tx.note.updateMany({
+          where: { userId: shellUserId },
+          data: { userId: appUserId, categoryId: null },
+        });
+        await tx.media.updateMany({
+          where: { userId: shellUserId },
+          data: { userId: appUserId },
+        });
+        await tx.category.deleteMany({ where: { userId: shellUserId } });
+        // 先解开 openid unique，再删空壳
+        await tx.user.update({
+          where: { id: shellUserId },
+          data: { wxOpenid: null, bindingCode: null },
+        });
+        await tx.user.delete({ where: { id: shellUserId } });
+      }
+
+      await tx.user.update({
+        where: { id: appUserId },
+        data: { wxOpenid },
+      });
+
+      const message = overwritten
+        ? '绑定成功，已覆盖原有微信绑定'
+        : syncedDraftCount > 0
+          ? `绑定成功，已同步 ${syncedDraftCount} 条笔记`
+          : '绑定成功';
+
+      return {
+        wxBound: true as const,
+        syncedDraftCount,
+        overwritten,
+        message,
+      };
     });
   }
 }

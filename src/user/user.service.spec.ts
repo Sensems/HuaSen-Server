@@ -7,6 +7,7 @@ const mockPrisma = {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
   $transaction: jest.fn(),
   note: { updateMany: jest.fn(), count: jest.fn() },
@@ -118,6 +119,103 @@ describe('UserService', () => {
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
       expect(prisma.user.create).not.toHaveBeenCalled();
       expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getProfile', () => {
+    it('returns wxBound false when no openid', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        nickname: 'n',
+        avatar: null,
+        email: 'a@b.com',
+        bindingCode: 'ABC234',
+        wxOpenid: null,
+      });
+      const profile = await service.getProfile('u1');
+      expect(profile.wxBound).toBe(false);
+      expect(profile.bindingCode).toBe('ABC234');
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('updates nickname only', async () => {
+      prisma.user.update.mockResolvedValue({
+        id: 'u1',
+        nickname: '新昵称',
+        avatar: 'https://cdn/a.png',
+        email: 'a@b.com',
+        bindingCode: 'ABC234',
+        wxOpenid: null,
+      });
+      const result = await service.updateProfile('u1', { nickname: '新昵称' });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u1' },
+        data: { nickname: '新昵称' },
+        select: expect.any(Object),
+      });
+      expect(result.nickname).toBe('新昵称');
+    });
+  });
+
+  describe('bindByShellCode', () => {
+    it('throws BINDING_CODE_INVALID when code missing', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      await expect(service.bindByShellCode('app-1', 'NOCODE')).rejects.toMatchObject({
+        code: 20016,
+      });
+    });
+
+    it('throws when code belongs to registered app user', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'other-app',
+        email: 'x@y.com',
+        wxOpenid: null,
+        bindingCode: 'APPCOD',
+      });
+      await expect(service.bindByShellCode('app-1', 'APPCOD')).rejects.toMatchObject({
+        code: 20016,
+      });
+    });
+
+    it('merges shell notes into app user', async () => {
+      prisma.$transaction.mockImplementation(async (fn) => fn(prisma));
+      prisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'shell-1',
+          email: null,
+          wxOpenid: 'oid-shell',
+          bindingCode: 'SHELL1',
+        })
+        .mockResolvedValueOnce({
+          id: 'app-1',
+          email: 'a@b.com',
+          wxOpenid: null,
+        })
+        .mockResolvedValueOnce({
+          id: 'shell-1',
+          email: null,
+        });
+      prisma.note.count.mockResolvedValue(2);
+      prisma.note.updateMany.mockResolvedValue({ count: 2 });
+      prisma.media.updateMany.mockResolvedValue({ count: 0 });
+      prisma.category.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.user.update.mockResolvedValue({});
+      prisma.user.delete.mockResolvedValue({});
+
+      const result = await service.bindByShellCode('app-1', 'SHELL1');
+
+      expect(result).toEqual({
+        wxBound: true,
+        syncedDraftCount: 2,
+        overwritten: false,
+        message: '绑定成功，已同步 2 条笔记',
+      });
+      expect(prisma.note.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'shell-1' },
+        data: { userId: 'app-1', categoryId: null },
+      });
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: 'shell-1' } });
     });
   });
 });
