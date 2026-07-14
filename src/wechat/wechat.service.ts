@@ -10,10 +10,11 @@ import {
 } from './types/wechat-message.types';
 import { WechatMessageJobData } from '../queue/processors/wechat-message.processor';
 import { PrismaService } from '../prisma/prisma.service';
+import { UserService } from '../user/user.service';
 
 /**
  * 微信消息服务
- * 处理公众号回调：Token 验证、消息解密 → 入 BullMQ 队列
+ * 处理公众号回调：Token 验证、消息解密 → 绑定码检测 → 入 BullMQ 队列
  */
 @Injectable()
 export class WechatService {
@@ -21,6 +22,7 @@ export class WechatService {
     private readonly configService: ConfigService,
     @InjectQueue('wechat-message') private readonly messageQueue: Queue,
     private readonly prisma: PrismaService,
+    private readonly userService: UserService,
   ) {}
 
   /**
@@ -33,7 +35,7 @@ export class WechatService {
 
   /**
    * 处理微信推送的消息
-   * 解密 → 去重检查 → 入 BullMQ 队列 → 返回被动回复 XML（加密）
+   * 解密 → 解析用户 → 绑定码检测 → 去重检查 → 入 BullMQ 队列 → 返回被动回复 XML（加密）
    */
   async handleMessage(body: string): Promise<string> {
     console.log('[WechatService] Step 1: Parsing encrypted XML...');
@@ -50,7 +52,83 @@ export class WechatService {
 
     console.log('[WechatService] Step 3: Parsing plain XML...');
     const message = await parseWechatXml<WechatBaseMessage>(plainXml);
-    console.log(`[WechatService] Received msgType=${message.MsgType} from=${(message.FromUserName as string)?.slice(0, 8)}...`);
+    const fromUserName = (message.FromUserName as string) || '';
+    const toUserName = (message.ToUserName as string) || '';
+    const msgType = message.MsgType as string;
+    console.log(
+      `[WechatService] Received msgType=${msgType} from=${fromUserName.slice(0, 8)}...`,
+    );
+
+    // 解析/创建微信用户（空壳或已绑定 App）
+    const resolved = await this.userService.findOrCreateByWechat(fromUserName);
+    console.log(
+      `[WechatService] Resolved user id=${resolved.id.slice(0, 8)}... email=${resolved.email ? 'yes' : 'no'}`,
+    );
+
+    // 文本消息：检测绑定码（在入队前拦截）
+    if (msgType === 'text') {
+      const rawContent = ((message as any).Content as string) || '';
+      const normalized = this.userService.normalizeBindingCode(rawContent);
+      if (/^[A-Z0-9]{6}$/.test(normalized)) {
+        // a. 空壳用户回发自己的绑定码 → 引导去 App 绑定，不入队
+        if (resolved.bindingCode === normalized && !resolved.email) {
+          console.log(
+            `[WechatService] Shell user resent own binding code=${normalized}, skip enqueue`,
+          );
+          return this.safeEncryptedReply(
+            fromUserName,
+            toUserName,
+            this.buildBindGuideText(normalized),
+            encodingAESKey,
+            appId,
+          );
+        }
+
+        // b. 查绑定码主人：有 email 则为 App 用户码 → 执行绑定，不入队
+        try {
+          const owner = await this.prisma.user.findUnique({
+            where: { bindingCode: normalized },
+            select: { email: true },
+          });
+          if (owner?.email) {
+            try {
+              const result = await this.userService.bindOpenidToAppByCode(
+                fromUserName,
+                normalized,
+              );
+              console.log(
+                `[WechatService] Bind by code ok: ${result.message}`,
+              );
+              return this.safeEncryptedReply(
+                fromUserName,
+                toUserName,
+                result.message,
+                encodingAESKey,
+                appId,
+              );
+            } catch (bindErr) {
+              console.error('[WechatService] Bind by code failed:', bindErr);
+              return this.safeEncryptedReply(
+                fromUserName,
+                toUserName,
+                '绑定失败，请稍后重试',
+                encodingAESKey,
+                appId,
+              );
+            }
+          }
+          // c. 他人空壳码或不存在 → 落入普通笔记流程
+          console.log(
+            `[WechatService] Code=${normalized} not an App binding code, fall through`,
+          );
+        } catch (lookupErr) {
+          console.error(
+            '[WechatService] Binding code lookup failed:',
+            lookupErr,
+          );
+        }
+      }
+    }
 
     // 消息去重检查（xml2js 可能把 MsgId 解析为数字，需转字符串）
     const rawMsgId = (message as any).MsgId;
@@ -71,7 +149,10 @@ export class WechatService {
           return 'success';
         }
       } catch (dbErr) {
-        console.error(`[WechatService] Dedup query failed for msgId=${msgId}:`, dbErr);
+        console.error(
+          `[WechatService] Dedup query failed for msgId=${msgId}:`,
+          dbErr,
+        );
         // DB 不可用时继续处理，不丢消息
       }
     }
@@ -83,26 +164,21 @@ export class WechatService {
       removeOnComplete: true,
       removeOnFail: 100,
     });
-    console.log(`[WechatService] Job enqueued: msgId=${msgId}, type=${message.MsgType}`);
+    console.log(
+      `[WechatService] Job enqueued: msgId=${msgId}, type=${msgType}`,
+    );
 
     // 构造被动回复（加密 XML），5 秒内返回给微信
-    if (message.FromUserName && message.ToUserName) {
-      try {
-        const reply = this.buildPassiveReply(
-          message.FromUserName as string,
-          message.ToUserName as string,
-          message.MsgType as string,
-          encodingAESKey,
-          appId,
-        );
-        console.log('[WechatService] Passive reply built');
-        return reply;
-      } catch (err) {
-        console.error('[WechatService] Failed to build passive reply:', err);
-      }
-    }
-
-    return 'success';
+    const replyContent = !resolved.email
+      ? this.buildBindGuideText(resolved.bindingCode || '')
+      : this.contentMapForMsgType(msgType);
+    return this.safeEncryptedReply(
+      fromUserName,
+      toUserName,
+      replyContent,
+      encodingAESKey,
+      appId,
+    );
   }
 
   /**
@@ -150,28 +226,16 @@ export class WechatService {
   }
 
   /**
-   * 构造被动回复的加密 XML 信封
-   * 微信会在 5 秒内收到此回复并转发给用户
-   * 回复正文是简短确认（笔记实际保存后由客服消息通知）
-   * @param fromUserName - 用户 openid（作为 ToUserName 回复给用户）
-   * @param toUserName - 公众号原始 ID（作为 FromUserName）
-   * @param msgType - 收到的消息类型
-   * @param encodingAESKey - 加密密钥
-   * @param appId - 公众号 AppId
-   * @returns 加密后的 XML 字符串
+   * 构造绑定引导文案
    */
-  private buildPassiveReply(
-    fromUserName: string,
-    toUserName: string,
-    msgType: string,
-    encodingAESKey: string,
-    appId: string,
-  ): string {
-    const token = this.configService.get<string>('wechat.token', '');
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const nonce = Math.random().toString(36).slice(2, 10);
+  private buildBindGuideText(code: string): string {
+    return `请打开花森笔记 App，在绑定页输入绑定码：${code}`;
+  }
 
-    // 根据消息类型生成不同的确认文案
+  /**
+   * 按消息类型返回「正在保存笔记」确认文案
+   */
+  private contentMapForMsgType(msgType: string): string {
     const contentMap: Record<string, string> = {
       text: '📝 收到文字，正在保存笔记...',
       image: '📷 收到图片，正在保存笔记...',
@@ -180,29 +244,74 @@ export class WechatService {
       file: '📎 收到文件，正在保存笔记...',
       link: '🔗 收到链接，正在保存笔记...',
     };
-    const replyContent = contentMap[msgType] || '✅ 已收到，正在处理...';
+    return contentMap[msgType] || '✅ 已收到，正在处理...';
+  }
 
-    // 明文回复 XML
+  /**
+   * 构造被动回复的加密 XML 信封（任意正文）
+   * @param toOpenid - 用户 openid（作为 ToUserName 回复给用户）
+   * @param fromGhId - 公众号原始 ID（作为 FromUserName）
+   * @param content - 回复正文
+   * @param encodingAESKey - 加密密钥
+   * @param appId - 公众号 AppId
+   * @returns 加密后的 XML 字符串
+   */
+  private buildEncryptedReply(
+    toOpenid: string,
+    fromGhId: string,
+    content: string,
+    encodingAESKey: string,
+    appId: string,
+  ): string {
+    const token = this.configService.get<string>('wechat.token', '');
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const nonce = Math.random().toString(36).slice(2, 10);
+
     const plainXml = buildReplyXml({
-      ToUserName: fromUserName,
-      FromUserName: toUserName,
+      ToUserName: toOpenid,
+      FromUserName: fromGhId,
       CreateTime: parseInt(timestamp, 10),
       MsgType: 'text',
-      Content: replyContent,
+      Content: content,
     });
 
-    // 加密明文
     const encrypt = encryptMessage(plainXml, encodingAESKey, appId);
-
-    // 签名
     const signature = generateSignature(token, timestamp, nonce, encrypt);
 
-    // 加密信封
     return buildReplyXml({
       Encrypt: encrypt,
       MsgSignature: signature,
       TimeStamp: timestamp,
       Nonce: nonce,
     });
+  }
+
+  /**
+   * 安全构造加密被动回复；缺 openid/公众号 ID 或加密失败时降级为 success
+   */
+  private safeEncryptedReply(
+    toOpenid: string,
+    fromGhId: string,
+    content: string,
+    encodingAESKey: string,
+    appId: string,
+  ): string {
+    if (!toOpenid || !fromGhId) {
+      return 'success';
+    }
+    try {
+      const reply = this.buildEncryptedReply(
+        toOpenid,
+        fromGhId,
+        content,
+        encodingAESKey,
+        appId,
+      );
+      console.log('[WechatService] Passive reply built');
+      return reply;
+    } catch (err) {
+      console.error('[WechatService] Failed to build passive reply:', err);
+      return 'success';
+    }
   }
 }
