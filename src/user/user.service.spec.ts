@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UserService } from './user.service';
+import { DEFAULT_USER_ID, UserService } from './user.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const mockPrisma = {
@@ -90,6 +90,34 @@ describe('UserService', () => {
       const user = await service.findOrCreateByWechat('oid2');
       expect(user.bindingCode).toBe('XYZ789');
       expect(prisma.user.update).toHaveBeenCalled();
+    });
+
+    it('returns existing user with email without backfilling bindingCode', async () => {
+      const existing = {
+        id: 'user-with-email',
+        email: 'user@example.com',
+        bindingCode: null,
+        wxOpenid: 'oid3',
+      };
+      prisma.user.findUnique.mockResolvedValueOnce(existing);
+
+      const user = await service.findOrCreateByWechat('oid3');
+      expect(user).toEqual(existing);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('returns default user when wxOpenid is empty', async () => {
+      const user = await service.findOrCreateByWechat('');
+
+      expect(user).toEqual({
+        id: DEFAULT_USER_ID,
+        email: null,
+        bindingCode: null,
+        wxOpenid: null,
+      });
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(prisma.user.create).not.toHaveBeenCalled();
+      expect(prisma.user.update).not.toHaveBeenCalled();
     });
   });
 });
