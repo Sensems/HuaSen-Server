@@ -254,7 +254,7 @@ describe('UserService', () => {
       });
     });
 
-    it('maps Prisma P2002 to BINDING_CODE_INVALID', async () => {
+    it('maps Prisma P2002 to BAD_REQUEST', async () => {
       prisma.$transaction.mockRejectedValue({ code: 'P2002' });
 
       await expect(
@@ -263,7 +263,7 @@ describe('UserService', () => {
           wxOpenid: 'oid',
         }),
       ).rejects.toMatchObject({
-        code: 20016,
+        code: 10001,
         message: '绑定失败，请稍后重试',
       });
     });

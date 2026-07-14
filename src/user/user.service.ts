@@ -328,7 +328,7 @@ export class UserService {
       const prismaCode = (error as { code?: string })?.code;
       if (prismaCode === 'P2002' || prismaCode === 'P2025') {
         throw new BusinessException(
-          ErrorCode.BINDING_CODE_INVALID,
+          ErrorCode.BAD_REQUEST,
           '绑定失败，请稍后重试',
         );
       }
