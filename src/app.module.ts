@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { appConfig, wechatConfig, qiniuConfig, emailConfig, throttleConfig } from './config/configuration';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
@@ -22,6 +21,7 @@ import { MailModule } from './mail/mail.module';
 /**
  * 应用根模块
  * 注册全局配置、过滤器、拦截器、JWT 守卫和所有功能模块
+ * 限流不走全局 Guard，仅 /auth/email/send-code 局部启用
  */
 @Module({
   imports: [
@@ -47,7 +47,6 @@ import { MailModule } from './mail/mail.module';
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: HttpLoggerInterceptor },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}

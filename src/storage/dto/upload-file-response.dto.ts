@@ -39,4 +39,12 @@ export class UploadFileResponseDto {
     example: 204800,
   })
   size!: number;
+
+  /** 用户上传时的原始文件名 */
+  @ApiProperty({
+    description: '用户上传时的原始文件名（multipart filename）',
+    example: 'vacation.jpg',
+    nullable: true,
+  })
+  originalFilename!: string | null;
 }

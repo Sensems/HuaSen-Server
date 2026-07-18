@@ -21,7 +21,7 @@ WechatService.handleMessage
   ↓
 Redis queue → WorkerHost(WechatMessageProcessor).process(job)
   ↓
-  text        → 直接 prisma.note.create
+  text        → prisma.$transaction(note + Media(TEXT 占位) + noteMedia)
   image/voice/video/file → axios下载 → StorageService.uploadBuffer → prisma.$transaction(note+media+noteMedia)
 ```
 

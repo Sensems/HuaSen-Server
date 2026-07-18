@@ -15,6 +15,7 @@ storage/
     └── delete-file-response.dto.ts
 ```
 
+
 ## 七牛云 SDK 使用
 - `qiniu.auth.digest.Mac` — AK/SK 签名
 - `qiniu.rs.PutPolicy` — Token 生成（scope, expires: 3600s）
@@ -25,6 +26,7 @@ storage/
 | 任务 | 位置 |
 |------|------|
 | App 直传 Token | `getUploadToken(key?)` — 有 key 则覆盖上传，无 key 自动生成 |
+| 服务端 multipart 上传 | `POST /storage/upload` — 上传七牛并建 Media，写入 `originalFilename` |
 | 服务端 Buffer 上传 | `uploadBuffer(key, buffer)` — 用于微信媒体下载后转存 |
 | 公开访问 URL | `getPublicUrl(key)` — `domain/key` |
 | 删除文件 | `deleteFile(key)` — 吞错返回 false |

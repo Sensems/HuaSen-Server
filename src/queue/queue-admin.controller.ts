@@ -1,7 +1,12 @@
 import { Controller, Get, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiWrappedOkResponse } from '../common/decorators/api-wrapped-response.decorator';
 import { Public } from '../common/decorators/public.decorator';
-import { QueueAdminService, QueueStats } from './queue-admin.service';
+import { QueueAdminService } from './queue-admin.service';
+import {
+  QueueRetryResponseDto,
+  QueueStatsResponseDto,
+} from './dto/queue-stats-response.dto';
 
 /**
  * 队列管理 API
@@ -18,44 +23,72 @@ export class QueueAdminController {
    * 获取队列统计
    */
   @Get()
-  async stats(): Promise<{ code: number; data: QueueStats; message: string }> {
-    const data = await this.queueAdminService.getStats();
-    return { code: 0, data, message: 'ok' };
+  @ApiOperation({
+    summary: '获取队列统计',
+    description: '公开接口，生产环境请自行加保护。',
+  })
+  @ApiWrappedOkResponse({
+    dataDto: QueueStatsResponseDto,
+    dataExample: {
+      name: 'wechat-message',
+      counts: { waiting: 0, active: 0, completed: 10, failed: 1, delayed: 0 },
+      workers: 1,
+      failedJobs: [
+        {
+          id: '123',
+          name: 'process-wechat-message',
+          failedReason: 'timeout',
+          attemptsMade: 3,
+          timestamp: 1710000000000,
+        },
+      ],
+    },
+  })
+  async stats() {
+    return this.queueAdminService.getStats();
   }
 
   /**
    * 重试所有失败任务
    */
   @Post('retry')
-  async retryAll(): Promise<{ code: number; data: { count: number }; message: string }> {
+  @ApiOperation({ summary: '重试全部失败任务' })
+  @ApiWrappedOkResponse({
+    dataDto: QueueRetryResponseDto,
+    dataExample: { count: 2 },
+  })
+  async retryAll() {
     const count = await this.queueAdminService.retryAll();
-    return { code: 0, data: { count }, message: `Retried ${count} failed jobs` };
+    return { count };
   }
 
   /**
    * 清空失败任务
    */
   @Post('clean-failed')
-  async cleanFailed(): Promise<{ code: number; data: null; message: string }> {
+  @ApiOperation({ summary: '清空失败任务' })
+  @ApiWrappedOkResponse({ dataExample: null })
+  async cleanFailed() {
     await this.queueAdminService.cleanFailed();
-    return { code: 0, data: null, message: 'Failed jobs cleaned' };
   }
 
   /**
    * 暂停队列
    */
   @Post('pause')
-  async pause(): Promise<{ code: number; data: null; message: string }> {
+  @ApiOperation({ summary: '暂停队列' })
+  @ApiWrappedOkResponse({ dataExample: null })
+  async pause() {
     await this.queueAdminService.pause();
-    return { code: 0, data: null, message: 'Queue paused' };
   }
 
   /**
    * 恢复队列
    */
   @Post('resume')
-  async resume(): Promise<{ code: number; data: null; message: string }> {
+  @ApiOperation({ summary: '恢复队列' })
+  @ApiWrappedOkResponse({ dataExample: null })
+  async resume() {
     await this.queueAdminService.resume();
-    return { code: 0, data: null, message: 'Queue resumed' };
   }
 }

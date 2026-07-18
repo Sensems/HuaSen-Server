@@ -13,6 +13,8 @@ interface CreateMediaParams {
   fileSize?: number;
   mimeType?: string;
   wxMediaId?: string;
+  /** 用户上传时的原始文件名；空串按 null 存储 */
+  originalFilename?: string;
   status?: MediaStatus;
 }
 
@@ -40,13 +42,16 @@ export class MediaService {
         fileSize: params.fileSize ?? null,
         mimeType: params.mimeType ?? null,
         wxMediaId: params.wxMediaId ?? null,
+        originalFilename: params.originalFilename?.trim()
+          ? params.originalFilename.trim()
+          : null,
         status: params.status ?? MediaStatus.PENDING,
       },
     });
   }
 
   /**
-   * 批量校验 mediaIds 是否属于指定用户且状态为 PENDING
+   * 批量校验 mediaIds 是否属于指定用户且状态可关联（PENDING 或 ORPHAN）
    * @returns 有效媒体列表和无效 ID 列表
    */
   async checkOwnership(
@@ -64,10 +69,11 @@ export class MediaService {
     const mediaMap = new Map(mediaRecords.map((m) => [m.id, m]));
     const valid: Media[] = [];
     const invalid: string[] = [];
+    const attachable = new Set<MediaStatus>([MediaStatus.PENDING, MediaStatus.ORPHAN]);
 
     for (const id of mediaIds) {
       const m = mediaMap.get(id);
-      if (!m || m.userId !== userId || m.status !== MediaStatus.PENDING) {
+      if (!m || m.userId !== userId || !attachable.has(m.status)) {
         invalid.push(id);
       } else {
         valid.push(m);
@@ -79,7 +85,7 @@ export class MediaService {
 
   /**
    * 批量关联媒体到笔记（事务内调用）
-   * 校验归属 + PENDING 状态后，创建 NoteMedia 关联并更新 Media 状态为 ATTACHED
+   * 校验归属 + 可关联状态（PENDING/ORPHAN）后，创建 NoteMedia 关联并更新 Media 状态为 ATTACHED
    * @throws MEDIA_NOT_OWNED 或 MEDIA_NOT_PENDING 如果校验失败
    */
   async attachToNote(
@@ -117,7 +123,8 @@ export class MediaService {
   }
 
   /**
-   * 解绑笔记所有媒体关联，孤立无其他关联的 Media
+   * 解绑笔记的非 TEXT 媒体关联，孤立无其他关联的 Media。
+   * TEXT 占位媒体（微信纯文本标记）保留不动，以免 mediaType=TEXT 筛选失效。
    */
   async detachFromNote(
     noteId: string,
@@ -125,19 +132,21 @@ export class MediaService {
   ): Promise<void> {
     const client = tx || this.prisma;
 
-    // 获取旧关联的 mediaIds
     const oldAssociations = await client.noteMedia.findMany({
-      where: { noteId },
+      where: {
+        noteId,
+        media: { type: { not: $Enums.MediaType.TEXT } },
+      },
       select: { mediaId: true },
     });
     const oldMediaIds = oldAssociations.map((a) => a.mediaId);
 
     if (!oldMediaIds.length) return;
 
-    // 删除关联
-    await client.noteMedia.deleteMany({ where: { noteId } });
+    await client.noteMedia.deleteMany({
+      where: { noteId, mediaId: { in: oldMediaIds } },
+    });
 
-    // 孤立没有其他关联的 Media
     const orphanIds = await this.isOrphan(oldMediaIds, tx);
     if (orphanIds.length > 0) {
       await client.media.updateMany({
@@ -148,11 +157,14 @@ export class MediaService {
   }
 
   /**
-   * 查询笔记下的媒体列表
+   * 查询笔记下的媒体列表（排除微信纯文本 TEXT 占位）
    */
   async findByNoteId(noteId: string): Promise<Media[]> {
     const associations = await this.prisma.noteMedia.findMany({
-      where: { noteId },
+      where: {
+        noteId,
+        media: { type: { not: $Enums.MediaType.TEXT } },
+      },
       include: { media: true },
       orderBy: { media: { uploadedAt: 'asc' } },
     });

@@ -1,5 +1,12 @@
 import { Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { WechatService } from './wechat.service';
 import { WechatVerifyParams } from './types/wechat-message.types';
@@ -21,6 +28,22 @@ export class WechatController {
    * GET /wechat/callback?signature=xxx&timestamp=xxx&nonce=xxx&echostr=xxx
    */
   @Get('callback')
+  @ApiOperation({
+    summary: '微信服务器 Token 验证',
+    description: '校验通过原样返回 echostr（纯文本，非 JSON）。',
+  })
+  @ApiQuery({ name: 'signature', example: 'xxx' })
+  @ApiQuery({ name: 'timestamp', example: '1710000000' })
+  @ApiQuery({ name: 'nonce', example: 'nonce' })
+  @ApiQuery({ name: 'echostr', example: 'echostr-to-return' })
+  @ApiOkResponse({
+    description: '验证成功返回 echostr 纯文本',
+    content: {
+      'text/plain': {
+        schema: { type: 'string', example: 'echostr-to-return' },
+      },
+    },
+  })
   verify(@Query() params: WechatVerifyParams): string {
     const valid = this.wechatService.verifyToken(
       params.signature,
@@ -36,6 +59,32 @@ export class WechatController {
    * 返回加密的被动回复 XML（微信 5 秒内交付给用户）
    */
   @Post('callback')
+  @ApiOperation({
+    summary: '接收微信消息',
+    description:
+      '请求体为加密 XML（text/xml）。成功返回加密被动回复 XML；异常时降级返回纯文本 success。不走统一 JSON 包装。',
+  })
+  @ApiConsumes('text/xml')
+  @ApiBody({
+    description: '微信推送的加密 XML',
+    schema: { type: 'string' },
+    examples: {
+      占位: {
+        value: '<xml><Encrypt><![CDATA[...]]></Encrypt></xml>',
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: '加密被动回复 XML 或 success',
+    content: {
+      'text/xml': {
+        schema: { type: 'string', example: '<xml>...</xml>' },
+      },
+      'text/plain': {
+        schema: { type: 'string', example: 'success' },
+      },
+    },
+  })
   async receive(
     @Req() req: FastifyRequest,
     @Res() res: FastifyReply,

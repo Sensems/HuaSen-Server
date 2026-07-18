@@ -1,6 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsEnum, IsIn, IsOptional, IsString } from "class-validator";
-import { MediaType, $Enums } from "@prisma/client";
+import { MediaType, NoteType, $Enums } from "@prisma/client";
 import { PaginationDto } from "../../common/dto/pagination.dto";
 
 /**
@@ -8,13 +8,14 @@ import { PaginationDto } from "../../common/dto/pagination.dto";
  */
 export class QueryNoteDto extends PaginationDto {
   @ApiProperty({
-    description: "笔记类型筛选（draft/published/archived）",
+    description: "笔记类型筛选（DRAFT/PUBLISHED/ARCHIVED）",
     required: false,
-    example: "published",
+    enum: NoteType,
+    example: "PUBLISHED",
   })
   @IsOptional()
-  @IsString()
-  type?: string;
+  @IsEnum($Enums.NoteType)
+  type?: $Enums.NoteType;
 
   @ApiProperty({
     description: "按分类 ID 筛选",

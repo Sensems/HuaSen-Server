@@ -1,20 +1,22 @@
 import { Controller, Get, Post, Body, Query, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiBadRequestResponse,
   ApiBody,
   ApiConsumes,
-  ApiNotFoundResponse,
   ApiOperation,
   ApiQuery,
-  ApiResponse,
   ApiTags,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import {
+  ApiWrappedErrorResponse,
+  ApiWrappedOkResponse,
+} from '../common/decorators/api-wrapped-response.decorator';
 import { $Enums } from '@prisma/client';
 import { StorageService } from './storage.service';
 import { MediaService } from '../media/media.service';
 import { CurrentUser, type CurrentUserInfo } from '../common/decorators/current-user.decorator';
+import { BusinessException } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/constants/error-codes';
 import {
   UploadTokenResponseDto,
   DeleteFileResponseDto,
@@ -55,13 +57,11 @@ export class StorageController {
     description: '七牛云对象存储的文件 key（不传则生成 scope 为整个 bucket 的 Token）',
     example: 'notes/2026/07/clxyz1234567890abcdef.jpg',
   })
-  @ApiResponse({
-    status: 200,
+  @ApiWrappedOkResponse({
     description: '返回七牛云直传 Token，有效期 1 小时',
-    type: UploadTokenResponseDto,
+    dataDto: UploadTokenResponseDto,
+    dataExample: { token: 'qiniu-upload-token-example' },
   })
-  @ApiUnauthorizedResponse({ description: '未认证，需要 Bearer Token' })
-  @ApiBadRequestResponse({ description: '参数校验失败' })
   async getUploadToken(@Query('key') key?: string) {
     const token = this.storageService.getUploadToken(key || undefined);
     return { token };
@@ -88,24 +88,41 @@ export class StorageController {
       },
     },
     examples: {
-      '上传图片': {
+      上传图片: {
         value: { type: 'IMAGE' },
-        description: '上传图片文件',
+        description: '上传图片文件（file 字段在 Try it out 中选择）',
       },
     },
   })
-  @ApiResponse({ status: 200, description: '上传成功，返回媒体记录 ID 和文件信息', type: UploadFileResponseDto })
-  @ApiResponse({ status: 400, description: '文件为空或格式不支持' })
-  @ApiUnauthorizedResponse({ description: '未认证，需要 Bearer Token' })
-  @ApiBadRequestResponse({ description: '参数校验失败' })
+  @ApiWrappedOkResponse({
+    description: '上传成功，返回媒体记录 ID 和文件信息',
+    dataDto: UploadFileResponseDto,
+    dataExample: {
+      mediaId: '550e8400-e29b-41d4-a716-446655440000',
+      key: 'notes/2026/07/abc123.jpg',
+      url: 'http://cdn.example.com/notes/2026/07/abc123.jpg',
+      mimeType: 'image/jpeg',
+      size: 204800,
+      originalFilename: 'vacation.jpg',
+    },
+  })
+  @ApiWrappedErrorResponse({
+    description: '文件为空或格式不支持',
+    example: { code: 10001, message: '请上传文件', data: null },
+  })
   async upload(@Req() req: any, @CurrentUser() user: CurrentUserInfo) {
     const file = await req.file();
+    if (!file) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请上传文件');
+    }
     const result = await this.storageService.uploadFile(file);
 
-    const typeRaw = (req.body?.type?.value as string) || (req.query?.type as string);
+    const typeRaw = (file.fields?.type?.value as string) || (req.query?.type as string);
     const type: $Enums.MediaType = typeRaw
       ? ($Enums.MediaType as any)[typeRaw]
       : inferMediaType(result.mimeType);
+
+    const originalFilename = (file.filename as string) || null;
 
     const media = await this.mediaService.create({
       userId: user.id,
@@ -114,9 +131,14 @@ export class StorageController {
       qiniuUrl: result.url,
       fileSize: result.size,
       mimeType: result.mimeType,
+      originalFilename: originalFilename ?? undefined,
     });
 
-    return { mediaId: media.id, ...result };
+    return {
+      mediaId: media.id,
+      ...result,
+      originalFilename: media.originalFilename,
+    };
   }
 
   /**
@@ -128,20 +150,17 @@ export class StorageController {
   @ApiBody({
     type: DeleteFileDto,
     examples: {
-      '删除文件': {
+      删除文件: {
         value: { key: 'notes/2026/07/image.jpg' },
         description: '根据七牛云 key 删除文件',
       },
     },
   })
-  @ApiResponse({
-    status: 200,
+  @ApiWrappedOkResponse({
     description: '返回是否删除成功',
-    type: DeleteFileResponseDto,
+    dataDto: DeleteFileResponseDto,
+    dataExample: { success: true },
   })
-  @ApiUnauthorizedResponse({ description: '未认证，需要 Bearer Token' })
-  @ApiBadRequestResponse({ description: '参数校验失败' })
-  @ApiNotFoundResponse({ description: '文件不存在' })
   async delete(@Body() body: DeleteFileDto) {
     const ok = await this.storageService.deleteFile(body.key);
     return { success: ok };

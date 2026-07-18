@@ -94,30 +94,53 @@ export class WechatMessageProcessor extends WorkerHost {
   }
 
   /**
-   * 处理文本消息：提取第一行作为标题，剩余内容作为正文
+   * 处理文本消息：提取第一行作为标题，剩余内容作为正文；
+   * 并创建 type=TEXT 的占位 Media 关联到笔记（供 mediaType=TEXT 筛选）
    */
   private async processText(data: WechatMessageJobData, userId: string) {
     const rawText = data.content || '';
     const title = this.generateTitle(rawText);
     const body = this.extractBody(rawText);
 
-    const note = await this.prisma.note.create({
-      data: {
-        userId,
-        type: $Enums.NoteType.DRAFT,
-        source: $Enums.NoteSource.WECHAT,
-        title,
-        content: body,
-        rawContent: data.rawContent,
-        meta: {
-          wechat_msg_id: data.msgId,
-          wechat_create_time: data.createTime,
-          from_user_name: data.fromUserName || undefined,
+    return this.prisma.$transaction(async (tx) => {
+      const note = await tx.note.create({
+        data: {
+          userId,
+          type: $Enums.NoteType.DRAFT,
+          source: $Enums.NoteSource.WECHAT,
+          title,
+          content: body,
+          rawContent: data.rawContent,
+          meta: {
+            wechat_msg_id: data.msgId,
+            wechat_create_time: data.createTime,
+            from_user_name: data.fromUserName || undefined,
+            media_type: 'text',
+          },
         },
-      },
+      });
+
+      const media = await tx.media.create({
+        data: {
+          userId,
+          type: $Enums.MediaType.TEXT,
+          qiniuKey: `text/wechat/${data.msgId}`,
+          qiniuUrl: '',
+          mimeType: 'text/plain',
+          fileSize: Buffer.byteLength(rawText, 'utf8'),
+          status: MediaStatus.ATTACHED,
+        },
+      });
+
+      await tx.noteMedia.create({
+        data: { noteId: note.id, mediaId: media.id },
+      });
+
+      console.log(
+        `[WechatProcessor] Note created: id=${note.id}, title="${title}", msgId=${data.msgId}, mediaType=TEXT`,
+      );
+      return note;
     });
-    console.log(`[WechatProcessor] Note created: id=${note.id}, title="${title}", msgId=${data.msgId}`);
-    return note;
   }
 
   /**

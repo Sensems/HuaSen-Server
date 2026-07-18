@@ -6,6 +6,7 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from "@nestjs/platform-fastify";
+import multipart from "@fastify/multipart";
 import { AppModule } from "./app.module";
 
 /**
@@ -18,6 +19,11 @@ async function bootstrap() {
     new FastifyAdapter(),
     { rawBody: true },
   );
+
+  // 注册 multipart（POST /storage/upload 等文件上传）
+  await app.register(multipart, {
+    limits: { fileSize: 10 * 1024 * 1024 },
+  });
 
   // 注册 text/xml 内容类型解析器（微信 POST 消息使用此 Content-Type）
   const fastifyInstance = app.getHttpAdapter().getInstance();
@@ -40,14 +46,38 @@ async function bootstrap() {
     }),
   );
 
-  // 启用 CORS（App 端跨域访问）
-  app.enableCors();
+  // 启用全局 CORS（任意来源可跨域访问）
+  app.enableCors({
+    origin: true, // 反射请求 Origin，允许任意来源
+    credentials: true,
+    methods: ['GET', 'POST', 'HEAD', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'Origin',
+    ],
+  });
 
   // 配置 Swagger / OpenAPI 文档
   // 通过 @fastify/swagger + @fastify/swagger-ui 渲染 Swagger UI
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("森花笔记 API")
-    .setDescription("微信公众号驱动的个人笔记系统")
+    .setTitle("花森笔记 API")
+    .setDescription(
+      [
+        "微信公众号驱动的个人笔记系统。",
+        "",
+        "## 统一响应",
+        "除 `/wechat/*` 外，成功响应均为：",
+        "```json",
+        '{ "code": 0, "message": "ok", "data": {} }',
+        "```",
+        "业务错误多为 HTTP 200，通过 `code` 区分（见错误码）。",
+        "",
+        "## 认证",
+        "需登录接口点击 Authorize，填入 `accessToken`（按 UI 提示是否加 Bearer 前缀）。",
+      ].join("\n"),
+    )
     .setVersion("1.0")
     .addBearerAuth(
       {
@@ -55,17 +85,20 @@ async function bootstrap() {
         scheme: "bearer",
         bearerFormat: "JWT",
         name: "JWT",
-        description: "请输入 JWT Token",
+        description: "请输入 JWT accessToken",
         in: "header",
       },
       "JWT-auth",
     )
-    .addTag("认证", "微信 OAuth 登录、JWT 签发/刷新/登出")
-    .addTag("笔记", "笔记的增删改查与状态流转")
+    .addTag("认证", "微信 OAuth、邮箱注册登录、JWT 刷新/登出")
+    .addTag("用户", "资料查询/更新、微信空壳绑定")
+    .addTag("笔记", "笔记增删改查与状态流转、置顶、分享")
     .addTag("分类", "分类树管理与拖拽排序")
-    .addTag("标签", "标签的创建与删除")
-    .addTag("存储", "七牛云上传 Token 与文件删除")
-    .addTag("微信", "公众号服务器配置验证与消息接收")
+    .addTag("标签", "标签创建（同名复用）与删除")
+    .addTag("媒体", "媒体归属校验")
+    .addTag("存储", "七牛云上传 Token、上传与删除")
+    .addTag("微信", "公众号服务器校验与消息接收（非 JSON）")
+    .addTag("队列管理", "BullMQ 运维接口（公开，生产请加保护）")
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup("api/docs", app, document, {

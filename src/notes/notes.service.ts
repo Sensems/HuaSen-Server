@@ -9,6 +9,12 @@ import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/constants/error-codes';
 import { Prisma, $Enums } from '@prisma/client';
 
+/** 笔记关联媒体 include：对外不返回 TEXT 占位（仍保留在库中供 mediaType 筛选） */
+const NOTE_MEDIA_INCLUDE = {
+  where: { media: { type: { not: $Enums.MediaType.TEXT } } },
+  include: { media: true as const },
+};
+
 /**
  * 笔记服务
  * 提供笔记的完整 CRUD 及状态流转
@@ -35,7 +41,7 @@ export class NotesService {
       deletedAt: null,
     };
 
-    if (type) where.type = type as $Enums.NoteType;
+    if (type) where.type = type;
     if (category) where.categoryId = category;
     if (keyword) {
       where.OR = [
@@ -47,7 +53,7 @@ export class NotesService {
       where.tags = { some: { tagId: tag } };
     }
     if (mediaType) {
-      where.media = { some: { media: { type: mediaType as $Enums.MediaType } } };
+      where.media = { some: { media: { type: mediaType } } };
     }
     if (view === 'pinned') {
       where.pinnedAt = { not: null };
@@ -72,12 +78,21 @@ export class NotesService {
         include: {
           category: { select: { id: true, name: true } },
           tags: { include: { tag: { select: { id: true, name: true } } } },
+          media: NOTE_MEDIA_INCLUDE,
         },
       }),
       this.prisma.note.count({ where }),
     ]);
 
-    return { items, total, page, size };
+    return {
+      items: items.map((note) => ({
+        ...note,
+        media: note.media.map((nm) => nm.media),
+      })),
+      total,
+      page,
+      size,
+    };
   }
 
   /**
@@ -90,7 +105,7 @@ export class NotesService {
       include: {
         category: { select: { id: true, name: true } },
         tags: { include: { tag: { select: { id: true, name: true } } } },
-        media: { include: { media: true } },
+        media: NOTE_MEDIA_INCLUDE,
       },
     });
 
@@ -114,7 +129,7 @@ export class NotesService {
         data: {
           userId: uid,
           type: $Enums.NoteType.DRAFT,
-          source: (dto.source as unknown as $Enums.NoteSource) || $Enums.NoteSource.APP_MANUAL,
+          source: (dto.source as $Enums.NoteSource) || $Enums.NoteSource.APP_MANUAL,
           title,
           content: dto.content,
           categoryId: dto.categoryId || null,
@@ -133,7 +148,7 @@ export class NotesService {
         include: {
           category: { select: { id: true, name: true } },
           tags: { include: { tag: { select: { id: true, name: true } } } },
-          media: { include: { media: true } },
+          media: NOTE_MEDIA_INCLUDE,
         },
       });
       return { ...result!, media: result!.media.map((nm) => nm.media) };
@@ -209,7 +224,7 @@ export class NotesService {
         include: {
           category: { select: { id: true, name: true } },
           tags: { include: { tag: { select: { id: true, name: true } } } },
-          media: { include: { media: true } },
+          media: NOTE_MEDIA_INCLUDE,
         },
       });
       return { ...note, media: note.media.map((nm) => nm.media) };
@@ -218,9 +233,10 @@ export class NotesService {
 
   /**
    * 软删除笔记
+   * @param userId - 可选，传入当前用户 ID；不传则用默认用户
    */
-  async softDelete(id: string) {
-    await this.findById(id);
+  async softDelete(id: string, userId?: string) {
+    await this.findById(id, userId);
     return this.prisma.note.update({
       where: { id },
       data: { deletedAt: new Date() },
@@ -229,9 +245,10 @@ export class NotesService {
 
   /**
    * 发布笔记（draft → published）
+   * @param userId - 可选，传入当前用户 ID；不传则用默认用户
    */
-  async publish(id: string) {
-    const note = await this.findById(id);
+  async publish(id: string, userId?: string) {
+    const note = await this.findById(id, userId);
     if (note.type !== $Enums.NoteType.DRAFT) {
       throw new BusinessException(
         ErrorCode.NOTE_INVALID_OPERATION,
@@ -246,9 +263,10 @@ export class NotesService {
 
   /**
    * 归档/取消归档笔记
+   * @param userId - 可选，传入当前用户 ID；不传则用默认用户
    */
-  async archive(id: string) {
-    const note = await this.findById(id);
+  async archive(id: string, userId?: string) {
+    const note = await this.findById(id, userId);
     if (note.type === $Enums.NoteType.DRAFT) {
       throw new BusinessException(
         ErrorCode.NOTE_INVALID_OPERATION,

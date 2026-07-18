@@ -19,24 +19,25 @@ media/
 PENDING ──[attachToNote()]──→ ATTACHED
    │                           │
    │                           └──[detachFromNote()]──→ ORPHAN（无其他笔记关联）
-   └── 上传成功但尚未关联笔记
+   └── 上传成功但尚未关联笔记         │
+                                      └──[attachToNote()]──→ ATTACHED
 ```
-- `PENDING`：上传成功但未关联笔记，仅可 attach
+- `PENDING`：上传成功但未关联笔记，可 attach
 - `ATTACHED`：已关联笔记，解绑后若无其他关联则变 `ORPHAN`
-- `ORPHAN`：无笔记关联，可清理或重新 attach
+- `ORPHAN`：无笔记关联，可清理或重新 attach（编辑笔记时 detach→reattach 会走这条路径）
 
 ## WHERE TO LOOK
 | 任务 | 位置 |
 |------|------|
-| 上传后创建 Media | `create(params, tx?)` — status 默认 PENDING |
+| 上传后创建 Media | `create(params, tx?)` — status 默认 PENDING；可传 `originalFilename` |
 | 批量校验归属 | `checkOwnership(mediaIds, userId)` — 校验用户归属 + PENDING 状态 |
 | 关联到笔记 | `attachToNote(noteId, mediaIds, userId, tx?)` — 创建 NoteMedia + 改 ATTACHED |
-| 解绑笔记媒体 | `detachFromNote(noteId, tx?)` — 删除 NoteMedia，孤立变 ORPHAN |
-| 查询笔记媒体 | `findByNoteId(noteId)` — NoteMedia 关联查询 |
+| 解绑笔记媒体 | `detachFromNote(noteId, tx?)` — 删除非 TEXT 的 NoteMedia，孤立变 ORPHAN；TEXT 占位保留 |
+| 查询笔记媒体 | `findByNoteId(noteId)` — NoteMedia 关联查询，排除 TEXT 占位 |
 
 ## CONVENTIONS
 - Service 所有方法支持可选事务参数 `tx?: Prisma.TransactionClient`
-- `attachToNote` 前必须 `checkOwnership` 校验归属和 PENDING 状态
+- `attachToNote` 前必须 `checkOwnership` 校验归属和可关联状态（PENDING / ORPHAN）
 - `detachFromNote` 后调用 `isOrphan` 判断是否需要标记 ORPHAN
 - 模块 standalone，不导入其他业务模块，通过 `@Global()` PrismaService 访问 DB
 

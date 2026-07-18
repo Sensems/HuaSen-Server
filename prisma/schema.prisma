@@ -18,6 +18,7 @@ enum MediaType {
   VOICE
   VIDEO
   FILE
+  TEXT
 }
 
 /** 媒体状态 */
@@ -110,10 +111,11 @@ model Media {
   type       MediaType
   qiniuKey   String       @map("qiniu_key") @db.VarChar(512)
   qiniuUrl   String       @map("qiniu_url") @db.VarChar(512)
-  wxMediaId  String?      @map("wx_media_id") @db.VarChar(128)
-  fileSize   Int?         @map("file_size")
-  mimeType   String?      @map("mime_type") @db.VarChar(64)
-  status     MediaStatus  @default(PENDING)
+  wxMediaId          String?     @map("wx_media_id") @db.VarChar(128)
+  originalFilename   String?     @map("original_filename") @db.VarChar(255)
+  fileSize           Int?        @map("file_size")
+  mimeType           String?     @map("mime_type") @db.VarChar(64)
+  status             MediaStatus @default(PENDING)
   uploadedAt DateTime     @default(now()) @map("uploaded_at")
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")

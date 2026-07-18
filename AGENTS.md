@@ -81,11 +81,20 @@ npm run test:e2e             # E2E 测试（需要 PostgreSQL + Redis）
 - For new features, prefer a short design brainstorm with explicit options and user approval before writing code.
 - For password-reset send-code on unknown emails, prefer explicit `EMAIL_NOT_FOUND` over silent success.
 - Prefer implementing directly in the current repo; decline git worktrees when offered for isolation.
+- For API docs work, prefer full Swagger coverage with request and response examples (not schemas alone).
+- When persisting upload original filenames, prefer a nullable `Media.originalFilename` DB field and keep random Qiniu keys (do not embed the original name in the object key).
 
 ## Learned Workspace Facts
 
 - Package manager is pnpm; after `pnpm install`, run `pnpm exec prisma generate`. Under pnpm, Prisma Client needs `.npmrc` public-hoist-pattern entries for `*prisma*` and `*@prisma*` or `@prisma/client` fails to resolve.
-- Nest dev server defaults to port 3000; Swagger UI is at `/api/docs`.
+- Nest dev server defaults to port 3000; Swagger UI is at `/api/docs` (use `@ApiWrappedOkResponse`; JWT bearer scheme name is `JWT-auth`). Human-readable API reference lives in `docs/API.md`.
 - Email sending lives in `src/mail/` (nodemailer SMTP); verification emails use「花森笔记」branding with a coral accent and a large spaced verification code.
 - Email auth: `POST /auth/email/send-code` requires `purpose` (`register` | `reset_password`); `POST /auth/email/reset-password` takes email + code + password (field name `password`), returns success without JWT; unknown email → `EMAIL_NOT_FOUND`.
 - Note pin: `Note.pinnedAt` (`DateTime?`); `POST /notes/pin` toggles; `GET /notes` optional `view=pinned|recent` (default: pinned first by `pinnedAt`, then `createdAt`; `pinned` = only pinned; `recent` = `createdAt` only). Do not set `pinnedAt` via `update`.
+- WeChat↔App binding uses shared `User.bindingCode` (6 chars): WeChat-first creates a shell user + code and keeps drafts; App `POST /user/bind` merges shell→logged-in user; App-first sends the code to the公众号 for sync bind (no note). Overwrite allowed with a tip. Profile: `GET /user/profile` exposes `wxBound` (`wxOpenid != null`) and `bindingCode`; `POST /user/update` is nickname/avatar URL only.
+- Note list query enums must match Prisma casing (e.g. `GET /notes?type=DRAFT`), not lowercase.
+- WeChat server callback should return within ~5s or WeChat retries (~3x); avoid blocking the passive reply on slow Redis/BullMQ enqueue.
+- `MediaType.TEXT`: WeChat pure-text (`MsgType=text`) creates a placeholder Media (`qiniuKey=text/wechat/{msgId}`, empty `qiniuUrl`, `mimeType=text/plain`, no Qiniu upload) linked to the note; filter with `GET /notes?mediaType=TEXT`. Associated media responses (`findByNoteId`, detail/create/update `media`) exclude TEXT; note update detach preserves TEXT links. App/manual create and storage `inferMediaType` unchanged.
+- Media attach/`checkOwnership` allows `PENDING` and `ORPHAN` (needed for `notes/update` detach→reattach); `ATTACHED` is rejected.
+- CORS is enabled globally in `main.ts` (`origin: true`, `credentials: true`); browser clients must use the final HTTPS API origin—HTTP→HTTPS redirects break CORS preflight.
+- `POST /storage/upload` needs `@fastify/multipart` registered in `main.ts`; without it Fastify returns HTTP 415 for `multipart/form-data`.

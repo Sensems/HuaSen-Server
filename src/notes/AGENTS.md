@@ -29,14 +29,14 @@ DRAFT ──[publish()]──→ PUBLISHED ──[archive()]──→ ARCHIVED
 ## WHERE TO LOOK
 | 任务 | 位置 |
 |------|------|
-| 笔记列表/详情 | `findAll` / `findById` — 带分类/标签 include |
+| 笔记列表/详情 | `findAll` / `findById` — 带分类/标签/媒体 include（排除 TEXT） |
 | 创建笔记（手动）| `create(dto)` — App 端和剪贴板 |
 | 创建笔记（微信）| `createFromWechat(params)` — 内部调用，msgId 去重 |
 | 状态变更 | `publish(id)` / `archive(id)` — 含前置校验 |
 | 置顶 / 取消置顶 | `pin(id)` — toggle `pinnedAt` |
 | 列表 view 维度 | `findAll` — `view=pinned\|recent`；默认 `pinnedAt` 优先 |
 | 标签变更 | `update(dto)` — 先 `deleteMany` 再 `create` NoteTag |
-| 获取媒体 | `getMedia(noteId)` — NoteMedia 关联查询 |
+| 获取媒体 | `getMedia(noteId)` — NoteMedia 关联查询（排除 TEXT 占位） |
 
 ## CONVENTIONS
 - 微信去重用 `meta.wechat_msg_id` JSONB 路径 + DB 唯一索引
